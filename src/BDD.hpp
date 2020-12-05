@@ -26,6 +26,19 @@ namespace std {
       return seed;
     }
   };
+
+  template<>
+  struct hash<tuple<uint32_t, uint32_t, uint32_t>> {
+    using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
+    using result_type = size_t;
+    result_type operator() (argument_type const& in) const {
+      result_type seed = 0;
+      hash_combine(seed, std::get<0>(in));
+      hash_combine(seed, std::get<1>(in));
+      hash_combine(seed, std::get<2>(in));
+      return seed;
+    }
+  };
 }
 
 class BDD {
@@ -49,7 +62,7 @@ private:
 public:
   explicit BDD(uint32_t num_vars)
     : unique_table(num_vars), num_invoke_not(0u), num_invoke_and(0u), num_invoke_or(0u),
-    num_invoke_xor(0u), num_invoke_ite(0u) {
+    num_invoke_xor(0u), num_invoke_ite(0u), not_cache(), and_cache(), or_cache(), xor_cache(), ite_cache() {
     nodes.emplace_back(Node({ num_vars, 0, 0 })); /* constant 0 */
     nodes.emplace_back(Node({ num_vars, 1, 1 })); /* constant 1 */
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
@@ -113,6 +126,14 @@ public:
   /* Compute ~f */
   index_t NOT(index_t f) {
     assert(f < nodes.size() && "Make sure f exists.");
+    /* check cache */
+    const auto it = not_cache.find(f);
+    if (it != not_cache.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     ++num_invoke_not;
 
     /* trivial cases */
@@ -129,13 +150,31 @@ public:
 
     index_t const r0 = NOT(f0);
     index_t const r1 = NOT(f1);
-    return unique(x, r1, r0);
+    const auto answer = unique(x, r1, r0);
+    /* we update the cache with the new value */
+    not_cache[f] = answer;
+    return answer;
   }
 
   /* Compute f ^ g */
   index_t XOR(index_t f, index_t g) {
     assert(f < nodes.size() && "Make sure f exists.");
     assert(g < nodes.size() && "Make sure g exists.");
+
+    /* check cache */
+    std::pair<index_t, index_t> key;
+    if (f <= g) {
+      key = { f, g };
+    } else {
+      key = { g, f };
+    }
+    const auto it = xor_cache.find(key);
+    if (it != xor_cache.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     ++num_invoke_xor;
 
     /* trivial cases */
@@ -185,13 +224,31 @@ public:
 
     index_t const r0 = XOR(f0, g0);
     index_t const r1 = XOR(f1, g1);
-    return unique(x, r1, r0);
+    const auto answer = unique(x, r1, r0);
+    /* we update the cache with the new value */
+    xor_cache[key] = answer;
+    return answer;
   }
 
   /* Compute f & g */
   index_t AND(index_t f, index_t g) {
     assert(f < nodes.size() && "Make sure f exists.");
     assert(g < nodes.size() && "Make sure g exists.");
+
+    /* check cache */
+    std::pair<index_t, index_t> key;
+    if (f <= g) {
+      key = { f, g };
+    } else {
+      key = { g, f };
+    }
+    const auto it = and_cache.find(key);
+    if (it != and_cache.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     ++num_invoke_and;
 
     /* trivial cases */
@@ -235,13 +292,31 @@ public:
 
     index_t const r0 = AND(f0, g0);
     index_t const r1 = AND(f1, g1);
-    return unique(x, r1, r0);
+    const auto answer = unique(x, r1, r0);
+    /* we update the cache with the new value */
+    and_cache[key] = answer;
+    return answer;
   }
 
   /* Compute f | g */
   index_t OR(index_t f, index_t g) {
     assert(f < nodes.size() && "Make sure f exists.");
     assert(g < nodes.size() && "Make sure g exists.");
+
+    /* check cache */
+    std::pair<index_t, index_t> key;
+    if (f <= g) {
+      key = { f, g };
+    } else {
+      key = { g, f };
+    }
+    const auto it = or_cache.find(key);
+    if (it != or_cache.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     ++num_invoke_or;
 
     /* trivial cases */
@@ -285,7 +360,10 @@ public:
 
     index_t const r0 = OR(f0, g0);
     index_t const r1 = OR(f1, g1);
-    return unique(x, r1, r0);
+    const auto answer = unique(x, r1, r0);
+    /* we update the cache with the new value */
+    or_cache[key] = answer;
+    return answer;
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
@@ -293,6 +371,16 @@ public:
     assert(f < nodes.size() && "Make sure f exists.");
     assert(g < nodes.size() && "Make sure g exists.");
     assert(h < nodes.size() && "Make sure h exists.");
+
+    /* check cache */
+    const std::tuple<index_t, index_t, index_t> key({f, g, h});
+    const auto it = ite_cache.find(key);
+    if (it != ite_cache.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     ++num_invoke_ite;
 
     /* trivial cases */
@@ -353,7 +441,10 @@ public:
 
     index_t const r0 = ITE(f0, g0, h0);
     index_t const r1 = ITE(f1, g1, h1);
-    return unique(x, r1, r0);
+    const auto answer = unique(x, r1, r0);
+    /* we update the cache with the new value */
+    ite_cache[key] = answer;
+    return answer;
   }
 
   /**********************************************************/
@@ -470,6 +561,13 @@ private:
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
 
-   /* statistics */
+  std::unordered_map<index_t, index_t> not_cache;
+  /* for all commutative opperations the key is sorted */
+  std::unordered_map<std::pair<index_t, index_t>, index_t> and_cache;
+  std::unordered_map<std::pair<index_t, index_t>, index_t> or_cache;
+  std::unordered_map<std::pair<index_t, index_t>, index_t> xor_cache;
+  std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t> ite_cache;
+
+  /* statistics */
   uint64_t num_invoke_not, num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
 };
