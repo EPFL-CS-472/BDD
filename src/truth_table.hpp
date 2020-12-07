@@ -25,6 +25,7 @@ static const uint64_t var_mask_neg[] = {
 
 /* return i if n == 2^i, 0 otherwise */
 uint8_t power_two(const uint32_t n) {
+  assert(n > 0);
   uint32_t curr = n;
   uint8_t i = 0u;
   while ((curr & 1) == 0) {
@@ -92,12 +93,12 @@ public:
   }
 
   bool get_bit(uint64_t const position) const {
-    assert(num_var == 64u | position < (uint64_t(1) << num_var));
+    assert(position <= (uint64_t(1) << num_var) - 1);
     return ((bits[position / 64u] >> (position % 64u)) & 1);
   }
 
   void set_bit(uint64_t const position) {
-    assert(num_var == 64u | position < (uint64_t(1) << num_var));
+    assert(position <= (uint64_t(1) << num_var) - 1);
     bits[position / 64u] |= (uint64_t(1) << (position % 64u));
   }
 
@@ -185,11 +186,12 @@ inline Truth_Table Truth_Table::positive_cofactor(uint8_t const var) const {
   std::vector<uint64_t> new_bits(bits.size());
   for (auto i = 0u; i < new_bits.size(); ++i) {
     if (var < 6u) {
-      new_bits[i] = masked_bits[i]| (masked_bits[i] >> (1 << var));
+      new_bits[i] = masked_bits[i] | (masked_bits[i] >> (1 << var));
     } else {
       new_bits[i] = masked_bits[i];
-      if (i + (1 << (var - 6)) < new_bits.size())
+      if (i + (1 << (var - 6)) < new_bits.size()) {
         new_bits[i] |= masked_bits[i + (1 << (var - 6))];
+      }
     }
   }
   return Truth_Table(num_var, new_bits);
@@ -208,8 +210,9 @@ inline Truth_Table Truth_Table::negative_cofactor(uint8_t const var) const {
       new_bits[i] = masked_bits[i] | (masked_bits[i] << (1 << var));
     } else {
       new_bits[i] = masked_bits[i];
-      if (i - (1 << (var - 6)) >= 0)
+      if (i - (1 << (var - 6)) >= 0) {
         new_bits[i] |= masked_bits[i - (1 << (var - 6))];
+      }
     }
   }
   return Truth_Table(num_var, new_bits);
