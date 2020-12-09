@@ -115,6 +115,16 @@ public:
     }
   }
 
+  index_t ref(index_t other){
+    return other;
+  }
+
+  void deref(index_t other){
+
+  }
+
+
+
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
   index_t literal( var_t var, bool complement = false )
   {
@@ -450,7 +460,7 @@ public:
   Truth_Table get_tt( index_t f ) const
   {
     assert( f < nodes.size() && "Make sure f exists." );
-    assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
+    //assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
 
     if ( f == constant( false ) )
     {
