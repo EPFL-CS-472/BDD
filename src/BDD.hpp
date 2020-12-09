@@ -6,8 +6,10 @@
 #include <vector>
 #include <unordered_map>
 #include <functional>
+#include <utility>
+#include <tuple>
 
-/* These are just some hacks to hash std::pair (for the unique table).
+/* These are just some hacks to hash std::pair and std::tuple.
  * You don't need to understand this part. */
 namespace std {
   template<class T>
@@ -16,13 +18,13 @@ namespace std {
   }
 
   template<>
-  struct hash<pair<uint32_t, uint32_t>> {
-    using argument_type = pair<uint32_t, uint32_t>;
+  struct hash<tuple<uint32_t, uint32_t>> {
+    using argument_type = tuple<uint32_t, uint32_t>;
     using result_type = size_t;
-    result_type operator() (argument_type const& in) const {
+    result_type operator() (argument_type const& in) const   {
       result_type seed = 0;
-      hash_combine(seed, in.first);
-      hash_combine(seed, in.second);
+      hash_combine(seed, std::get<0>(in));
+      hash_combine(seed, std::get<1>(in));
       return seed;
     }
   };
@@ -31,7 +33,7 @@ namespace std {
   struct hash<tuple<uint32_t, uint32_t, uint32_t>> {
     using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
     using result_type = size_t;
-    result_type operator() (argument_type const& in) const {
+    result_type operator() (argument_type const& in) const   {
       result_type seed = 0;
       hash_combine(seed, std::get<0>(in));
       hash_combine(seed, std::get<1>(in));
@@ -39,38 +41,56 @@ namespace std {
       return seed;
     }
   };
-}
+};
 
 class BDD {
 public:
-  using index_t = uint32_t;
-  /* Declaring `index_t` as an alias for an unsigned integer.
-   * This is just for easier understanding of the code.
-   * This datatype will be used for node indices. */
+  using signal_t = uint32_t;
+  /* A signal represents an edge pointing to a node.
+   * The first 31 bits store the index of the node,
+   * and the last bit records whether the edge is complemented or not.
+   * See below `make_signal`, `get_index` and `is_complemented`. */
 
   using var_t = uint32_t;
-  /* Similarly, declare `var_t` also as an alias for an unsigned integer.
+  /* Declare `var_t` as an alias for an unsigned integer.
    * This datatype will be used for representing variables. */
 
 private:
-  struct Node {
+  using index_t = uint32_t;
+  /* Declare `index_t` as an alias for an unsigned integer.
+   * This is just for easier understanding of the code.
+   * This datatype will be used for node indices. */
+
+  struct Node   {
     var_t v; /* corresponding variable */
-    index_t T; /* index of THEN child */
-    index_t E; /* index of ELSE child */
+    signal_t T; /* signal of THEN child (should not be complemented) */
+    signal_t E; /* signal of ELSE child */
   };
+
+  inline signal_t make_signal(index_t index, bool complement = false) const   {
+    return complement ? (index << 1) + 1 : index << 1;
+  }
+
+  inline index_t get_index(signal_t signal) const   {
+    assert((signal >> 1) < nodes.size());
+    return signal >> 1;
+  }
+
+  inline Node get_node(signal_t signal) const   {
+    return nodes[get_index(signal)];
+  }
+
+  inline bool is_complemented(signal_t signal) const   {
+    return signal & 0x1;
+  }
 
 public:
   explicit BDD(uint32_t num_vars)
-    : unique_table(num_vars), num_invoke_not(0u), num_invoke_and(0u), num_invoke_or(0u),
-    num_invoke_xor(0u), num_invoke_ite(0u), not_cache(), and_cache(), or_cache(), xor_cache(), ite_cache() {
-    nodes.emplace_back(Node({ num_vars, 0, 0 })); /* constant 0 */
-    nodes.emplace_back(Node({ num_vars, 1, 1 })); /* constant 1 */
-    /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
-     * Their `v` is `num_vars` and their indices are 0 and 1.
-     * (Note that the real variables range from 0 to `num_vars - 1`.)
-     * Both of their children point to themselves, just for convenient representation.
-     *
-     * `unique_table` is initialized with `num_vars` empty maps. */
+    : unique_table(num_vars), num_invoke_and(0u), num_invoke_or(0u),
+    num_invoke_xor(0u), num_invoke_ite(0u), computed_table_AND(),
+    computed_table_OR(), computed_table_XOR(), computed_table_ITE()   {
+    nodes.emplace_back(Node({ num_vars, 0, 0 })); /* constant 1 */
+    refs.emplace_back(0);
   }
 
   /**********************************************************/
@@ -81,42 +101,55 @@ public:
     return unique_table.size();
   }
 
-  /* Get the (index of) constant node. */
-  index_t constant(bool value) const {
-    return value ? 1 : 0;
+  /* Get the constant signal. */
+  signal_t constant(bool value) const   {
+    return value ? 0 /* the constant 1 node not inverted */ : 1 /* the constant 1 node inverted */;
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  index_t unique(var_t var, index_t T, index_t E) {
+  signal_t unique(var_t var, signal_t T, signal_t E)   {
     assert(var < num_vars() && "Variables range from 0 to `num_vars - 1`.");
-    assert(T < nodes.size() && "Make sure the children exist.");
-    assert(E < nodes.size() && "Make sure the children exist.");
-    assert(nodes[T].v > var && "With static variable order, children can only be below the node.");
-    assert(nodes[E].v > var && "With static variable order, children can only be below the node.");
+    assert(get_node(T).v > var && "With static variable order, children can only be below the node.");
+    assert(get_node(E).v > var && "With static variable order, children can only be below the node.");
 
     /* Reduction rule: Identical children */
     if (T == E) {
       return T;
     }
 
+    bool output_neg = false; /* TODO */
+
     /* Look up in the unique table. */
     const auto it = unique_table[var].find({ T, E });
     if (it != unique_table[var].end()) {
       /* The required node already exists. Return it. */
-      return it->second;
-    } else {
+      return make_signal(it->second, output_neg);
+    }     else     {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
       nodes.emplace_back(Node({ var, T, E }));
+      refs.emplace_back(0);
       unique_table[var][{T, E}] = new_index;
-      return new_index;
+      return make_signal(new_index, output_neg);
     }
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  index_t literal(var_t var, bool complement = false) {
+  signal_t literal(var_t var, bool complement = false)   {
     return unique(var, constant(!complement), constant(complement));
+  }
+
+  /**********************************************************/
+  /*********************** Ref & Deref **********************/
+  /**********************************************************/
+  signal_t ref(signal_t f)   {
+    /* TODO */
+    return f;
+  }
+
+  void deref(signal_t f)   {
+    /* TODO */
   }
 
   /**********************************************************/
@@ -124,58 +157,34 @@ public:
   /**********************************************************/
 
   /* Compute ~f */
-  index_t NOT(index_t f) {
-    assert(f < nodes.size() && "Make sure f exists.");
-    /* check cache */
-    const auto it = not_cache.find(f);
-    if (it != not_cache.end()) {
-      /* we found a node in the cache */
-      return it->second;
-    }
-
-    /* we did not found an answer in the cache */
-    ++num_invoke_not;
-
-    /* trivial cases */
-    if (f == constant(false)) {
-      return constant(true);
-    }
-    if (f == constant(true)) {
-      return constant(false);
-    }
-
-    Node const& F = nodes[f];
-    var_t x = F.v;
-    index_t f0 = F.E, f1 = F.T;
-
-    index_t const r0 = NOT(f0);
-    index_t const r1 = NOT(f1);
-    const auto answer = unique(x, r1, r0);
-    /* we update the cache with the new value */
-    not_cache[f] = answer;
-    return answer;
+  signal_t NOT(signal_t f) {
+    return (f & ~1) | (~(f & 1));
   }
 
   /* Compute f ^ g */
-  index_t XOR(index_t f, index_t g) {
-    assert(f < nodes.size() && "Make sure f exists.");
-    assert(g < nodes.size() && "Make sure g exists.");
+  signal_t XOR(signal_t f, signal_t g)   {
+    ++num_invoke_xor;
 
-    /* check cache */
-    std::pair<index_t, index_t> key;
+    // assert(f < nodes.size() && "Make sure f exists.");
+    // assert(g < nodes.size() && "Make sure g exists.");
+
+    // /* check cache */
+    std::tuple<index_t, index_t> key;
     if (f <= g) {
       key = { f, g };
     } else {
       key = { g, f };
     }
-    const auto it = xor_cache.find(key);
-    if (it != xor_cache.end()) {
-      /* we found a node in the cache */
-      return it->second;
-    }
+    // const auto it = xor_cache.find(key);
+    // if (it != xor_cache.end()) {
+    //   /* we found a node in the cache */
+    //   return it->second;
+    // }
 
-    /* we did not found an answer in the cache */
-    ++num_invoke_xor;
+    // /* we did not found an answer in the cache */
+
+    Node const& F = get_node(f);
+    Node const& G = get_node(g);
 
     /* trivial cases */
     if (f == g) {
@@ -197,10 +206,8 @@ public:
       return constant(true);
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if (F.v < G.v) /* F is on top of G */
     {
       x = F.v;
@@ -222,19 +229,16 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = XOR(f0, g0);
-    index_t const r1 = XOR(f1, g1);
+    signal_t const r0 = XOR(f0, g0);
+    signal_t const r1 = XOR(f1, g1);
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
-    xor_cache[key] = answer;
+    computed_table_XOR[key] = answer;
     return answer;
   }
 
   /* Compute f & g */
-  index_t AND(index_t f, index_t g) {
-    assert(f < nodes.size() && "Make sure f exists.");
-    assert(g < nodes.size() && "Make sure g exists.");
-
+  signal_t AND(signal_t f, signal_t g) {
     /* check cache */
     std::pair<index_t, index_t> key;
     if (f <= g) {
@@ -242,14 +246,16 @@ public:
     } else {
       key = { g, f };
     }
-    const auto it = and_cache.find(key);
-    if (it != and_cache.end()) {
-      /* we found a node in the cache */
-      return it->second;
-    }
+    // const auto it = and_cache.find(key);
+    // if (it != and_cache.end()) {
+    //   /* we found a node in the cache */
+    //   return it->second;
+    // }
 
-    /* we did not found an answer in the cache */
+    // /* we did not found an answer in the cache */
     ++num_invoke_and;
+    Node const& F = get_node(f);
+    Node const& G = get_node(g);
 
     /* trivial cases */
     if (f == constant(false) || g == constant(false)) {
@@ -265,10 +271,8 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if (F.v < G.v) /* F is on top of G */
     {
       x = F.v;
@@ -290,19 +294,16 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = AND(f0, g0);
-    index_t const r1 = AND(f1, g1);
+    signal_t const r0 = AND(f0, g0);
+    signal_t const r1 = AND(f1, g1);
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
-    and_cache[key] = answer;
+    computed_table_AND[key] = answer;
     return answer;
   }
 
   /* Compute f | g */
-  index_t OR(index_t f, index_t g) {
-    assert(f < nodes.size() && "Make sure f exists.");
-    assert(g < nodes.size() && "Make sure g exists.");
-
+  signal_t OR(signal_t f, signal_t g) {
     /* check cache */
     std::pair<index_t, index_t> key;
     if (f <= g) {
@@ -310,14 +311,16 @@ public:
     } else {
       key = { g, f };
     }
-    const auto it = or_cache.find(key);
-    if (it != or_cache.end()) {
-      /* we found a node in the cache */
-      return it->second;
-    }
+    // const auto it = or_cache.find(key);
+    // if (it != or_cache.end()) {
+    //   /* we found a node in the cache */
+    //   return it->second;
+    // }
 
-    /* we did not found an answer in the cache */
+    // /* we did not found an answer in the cache */
     ++num_invoke_or;
+    Node const& F = get_node(f);
+    Node const& G = get_node(g);
 
     /* trivial cases */
     if (f == constant(true) || g == constant(true)) {
@@ -333,10 +336,8 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if (F.v < G.v) /* F is on top of G */
     {
       x = F.v;
@@ -358,30 +359,33 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = OR(f0, g0);
-    index_t const r1 = OR(f1, g1);
+    signal_t const r0 = OR(f0, g0);
+    signal_t const r1 = OR(f1, g1);
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
-    or_cache[key] = answer;
+    computed_table_OR[key] = answer;
     return answer;
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
-  index_t ITE(index_t f, index_t g, index_t h) {
+  signal_t ITE(signal_t f, signal_t g, signal_t h) {
     assert(f < nodes.size() && "Make sure f exists.");
     assert(g < nodes.size() && "Make sure g exists.");
     assert(h < nodes.size() && "Make sure h exists.");
 
-    /* check cache */
-    const std::tuple<index_t, index_t, index_t> key({f, g, h});
-    const auto it = ite_cache.find(key);
-    if (it != ite_cache.end()) {
-      /* we found a node in the cache */
-      return it->second;
-    }
+    // /* check cache */
+    const std::tuple<index_t, index_t, index_t> key({ f, g, h });
+    // const auto it = ite_cache.find(key);
+    // if (it != ite_cache.end()) {
+    //   /* we found a node in the cache */
+    //   return it->second;
+    // }
 
-    /* we did not found an answer in the cache */
+    // /* we did not found an answer in the cache */
     ++num_invoke_ite;
+    Node const& F = get_node(f);
+    Node const& G = get_node(g);
+    Node const& H = get_node(h);
 
     /* trivial cases */
     if (f == constant(true)) {
@@ -394,11 +398,8 @@ public:
       return g;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    Node const& H = nodes[h];
     var_t x;
-    index_t f0, f1, g0, g1, h0, h1;
+    signal_t f0, f1, g0, g1, h0, h1;
     if (F.v <= G.v && F.v <= H.v) /* F is not lower than both G and H */
     {
       x = F.v;
@@ -439,11 +440,11 @@ public:
       }
     }
 
-    index_t const r0 = ITE(f0, g0, h0);
-    index_t const r1 = ITE(f1, g1, h1);
+    signal_t const r0 = ITE(f0, g0, h0);
+    signal_t const r1 = ITE(f1, g1, h1);
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
-    ite_cache[key] = answer;
+    computed_table_ITE[key] = answer;
     return answer;
   }
 
@@ -452,32 +453,38 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print(index_t f, std::ostream& os = std::cout) const {
-    for (auto i = 0u; i < nodes[f].v; ++i) {
+  void print(signal_t f, std::ostream& os = std::cout) const   {
+    Node const& F = get_node(f);
+    for (auto i = 0u; i < F.v; ++i)     {
       os << "  ";
     }
-    if (f <= 1) {
-      os << "node " << f << ": constant " << f << std::endl;
-    } else {
-      os << "node " << f << ": var = " << nodes[f].v << ", T = " << nodes[f].T
-        << ", E = " << nodes[f].E << std::endl;
-      for (auto i = 0u; i < nodes[f].v; ++i) {
+    if (f <= 1)     {
+      os << "constant " << (f ? "0" : "1") << std::endl;
+    }     else     {
+      if (is_complemented(f))       {
+        os << "!";
+      }       else       {
+        os << " ";
+      }
+
+      os << "node " << get_index(f) << ": var = " << F.v << ", T = " << F.T
+        << ", E = " << F.E << std::endl;
+      for (auto i = 0u; i < F.v; ++i)       {
         os << "  ";
       }
       os << "> THEN branch" << std::endl;
-      print(nodes[f].T, os);
-      for (auto i = 0u; i < nodes[f].v; ++i) {
+      print(F.T, os);
+      for (auto i = 0u; i < F.v; ++i)       {
         os << "  ";
       }
       os << "> ELSE branch" << std::endl;
-      print(nodes[f].E, os);
+      print(F.E, os);
     }
   }
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt(index_t f) const {
-    assert(f < nodes.size() && "Make sure f exists.");
-    assert(num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables.");
+  Truth_Table get_tt(signal_t f) const   {
+    Node const& F = get_node(f);
 
     if (f == constant(false)) {
       return Truth_Table(num_vars());
@@ -486,25 +493,28 @@ public:
     }
 
     /* Shannon expansion: f = x f_x + x' f_x' */
-    var_t const x = nodes[f].v;
-    index_t const fx = nodes[f].T;
-    index_t const fnx = nodes[f].E;
+    var_t const x = F.v;
+    signal_t const fx = F.T;
+    signal_t const fnx = F.E;
     Truth_Table const tt_x = create_tt_nth_var(num_vars(), x);
     Truth_Table const tt_nx = create_tt_nth_var(num_vars(), x, false);
-    return (tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx));
+    if (is_complemented(f))     {
+      return ~((tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx)));
+    }     else     {
+      return (tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx));
+    }
   }
 
   /* Whether `f` is dead (having a reference count of 0). */
-  bool is_dead(index_t f) const {
-    /* TODO */
-    return false;
+  bool is_dead(index_t f) const   {
+    return refs[f] == 0u;
   }
 
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() const {
     uint64_t n = 0u;
-    for (auto i = 2u; i < nodes.size(); ++i) {
-      if (!is_dead(i)) {
+    for (auto i = 1u; i < nodes.size(); ++i)     {
+      if (!is_dead(i))       {
         ++n;
       }
     }
@@ -512,22 +522,19 @@ public:
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes(index_t f) const {
-    assert(f < nodes.size() && "Make sure f exists.");
-
-    if (f == constant(false) || f == constant(true)) {
+  uint64_t num_nodes(signal_t f) const   {
+    if (f == constant(false) || f == constant(true))     {
       return 0u;
     }
 
     std::vector<bool> visited(nodes.size(), false);
     visited[0] = true;
-    visited[1] = true;
 
-    return num_nodes_rec(f, visited);
+    return num_nodes_rec(get_index(f), visited);
   }
 
-  uint64_t num_invoke() const {
-    return num_invoke_not + num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
+  uint64_t num_invoke() const   {
+    return num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
   }
 
 private:
@@ -535,39 +542,36 @@ private:
   /******************** Helper Functions ********************/
   /**********************************************************/
 
-  uint64_t num_nodes_rec(index_t f, std::vector<bool>& visited) const {
+  uint64_t num_nodes_rec(index_t f, std::vector<bool>& visited) const   {
     assert(f < nodes.size() && "Make sure f exists.");
-
 
     uint64_t n = 0u;
     Node const& F = nodes[f];
-    assert(F.T < nodes.size() && "Make sure the children exist.");
-    assert(F.E < nodes.size() && "Make sure the children exist.");
-    if (!visited[F.T]) {
-      n += num_nodes_rec(F.T, visited);
-      visited[F.T] = true;
+    if (!visited[get_index(F.T)])     {
+      n += num_nodes_rec(get_index(F.T), visited);
+      visited[get_index(F.T)] = true;
     }
-    if (!visited[F.E]) {
-      n += num_nodes_rec(F.E, visited);
-      visited[F.E] = true;
+    if (!visited[get_index(F.E)])     {
+      n += num_nodes_rec(get_index(F.E), visited);
+      visited[get_index(F.E)] = true;
     }
     return n + 1u;
   }
 
 private:
   std::vector<Node> nodes;
-  std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
+  std::vector<uint32_t> refs; /* The reference counts. Should always be the same size as `nodes`. */
+  std::vector<std::unordered_map<std::tuple<signal_t, signal_t>, index_t>> unique_table;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
 
-  std::unordered_map<index_t, index_t> not_cache;
-  /* for all commutative opperations the key is sorted */
-  std::unordered_map<std::pair<index_t, index_t>, index_t> and_cache;
-  std::unordered_map<std::pair<index_t, index_t>, index_t> or_cache;
-  std::unordered_map<std::pair<index_t, index_t>, index_t> xor_cache;
-  std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t> ite_cache;
+   /* Computed tables for each operation type. */
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_AND;
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_OR;
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_XOR;
+  std::unordered_map<std::tuple<signal_t, signal_t, signal_t>, signal_t> computed_table_ITE;
 
   /* statistics */
-  uint64_t num_invoke_not, num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
+  uint64_t num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
 };
