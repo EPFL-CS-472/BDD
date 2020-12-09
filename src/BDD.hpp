@@ -540,6 +540,8 @@ private:
     return n + 1u;
   }
 
+  
+
 private:
   std::vector<Node> nodes;
   std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
