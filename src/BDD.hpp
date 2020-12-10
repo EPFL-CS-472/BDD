@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <functional>
 
+#include <limits>
+
 /* These are just some hacks to hash std::pair (for the unique table).
  * You don't need to understand this part. */
 namespace std
@@ -30,15 +32,30 @@ struct hash<pair<uint32_t, uint32_t>>
     return seed;
   }
 };
+
+template<>
+struct hash<tuple<uint32_t, uint32_t, uint32_t>>
+{
+  using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
+  using result_type = size_t;
+  result_type operator() ( argument_type const& in ) const
+  {
+    result_type seed = 0;
+    hash_combine( seed, std::get<0>(in));
+    hash_combine( seed, std::get<1>(in));
+    hash_combine( seed, std::get<2>(in));
+    return seed;
+  }
+};
 }
 
 class BDD
 {
 public:
-  using index_t = uint32_t;
-  /* Declaring `index_t` as an alias for an unsigned integer.
-   * This is just for easier understanding of the code.
-   * This datatype will be used for node indices. */
+
+  using value_t = uint32_t; // pointer to Edge
+
+  using index_t = uint32_t; // pointer to Node
 
   using var_t = uint32_t;
   /* Similarly, declare `var_t` also as an alias for an unsigned integer.
@@ -48,17 +65,32 @@ private:
   struct Node
   {
     var_t v; /* corresponding variable */
-    index_t T; /* index of THEN child */
-    index_t E; /* index of ELSE child */
+    value_t T; /* index of THEN child */
+    value_t E; /* index of ELSE child */
+
+    value_t pos_ref; // positive parent, num_vars means empty
+    value_t neg_ref; // negative parent, num_vars means empty
+
+    uint32_t reference_count;
+  };
+
+  struct NodeReference {
+    bool flipped;
+    index_t node_idx;
   };
 
 public:
   explicit BDD( uint32_t num_vars )
-    : unique_table( num_vars ), num_invoke_not( 0u ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
-      num_invoke_xor( 0u ), num_invoke_ite( 0u )
+    : unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
+      num_invoke_xor( 0u ), num_invoke_ite( 0u ), repeat_invoke(0u)
   {
-    nodes.emplace_back( Node({num_vars, 0, 0}) ); /* constant 0 */
-    nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
+    nodes.emplace_back(Node({num_vars, 1, 1, 1, 0, 0})); /* constant 1 */
+    refs.emplace_back(NodeReference{
+      true, 0
+    }); // constant 0
+    refs.emplace_back(NodeReference{
+      false, 0
+    }); // constant 1
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
      * Their `v` is `num_vars` and their indices are 0 and 1.
      * (Note that the real variables range from 0 to `num_vars - 1`.)
@@ -77,25 +109,35 @@ public:
   }
 
   /* Get the (index of) constant node. */
-  index_t constant( bool value ) const
+  value_t constant( bool value ) const
   {
     return value ? 1 : 0;
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  index_t unique( var_t var, index_t T, index_t E )
+  index_t unique( var_t var, value_t T, value_t E )
   {
     assert( var < num_vars() && "Variables range from 0 to `num_vars - 1`." );
-    assert( T < nodes.size() && "Make sure the children exist." );
-    assert( E < nodes.size() && "Make sure the children exist." );
-    assert( nodes[T].v > var && "With static variable order, children can only be below the node." );
-    assert( nodes[E].v > var && "With static variable order, children can only be below the node." );
+    assert( T < refs.size() && "Make sure the children exist." );
+    assert( E < refs.size() && "Make sure the children exist." );
+    NodeReference &rT = refs[T];
+    NodeReference &rE = refs[E];
+    assert( nodes[rT.node_idx].v > var && "With static variable order, children can only be below the node." );
+    assert( nodes[rE.node_idx].v > var && "With static variable order, children can only be below the node." );
 
     /* Reduction rule: Identical children */
     if ( T == E )
     {
       return T;
+    }
+    
+    bool result_flipped = false;
+    // what if T.flipped is true?
+    if(rT.flipped){
+      result_flipped = true;
+      T = buildReference(false, rT.node_idx);
+      E = getFlippedReference(E);
     }
 
     /* Look up in the unique table. */
@@ -103,32 +145,42 @@ public:
     if ( it != unique_table[var].end() )
     {
       /* The required node already exists. Return it. */
-      return it->second;
+      //repeat_invoke += 1;
+      return buildReference(result_flipped, it->second);
     }
     else
     {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
-      nodes.emplace_back( Node({var, T, E}) );
+      nodes.emplace_back( Node({var, T, E, std::numeric_limits<index_t>::max(), std::numeric_limits<index_t>::max(), 0}) );
       unique_table[var][{T, E}] = new_index;
-      return new_index;
+      return buildReference(result_flipped, new_index);
     }
   }
 
   index_t ref(index_t other){
+    NodeReference &rO = refs[other];
+    Node &nO = nodes[rO.node_idx];
+    ++nO.reference_count;
     return other;
   }
 
   void deref(index_t other){
-
+    NodeReference &rO = refs[other];
+    Node &nO = nodes[rO.node_idx];
+    assert(nO.reference_count > 0 && "It's impossible to delete a dead node!");
+    --nO.reference_count;
+    if(nO.reference_count == 0){
+      // dead code
+      deref(nO.T);
+      deref(nO.E);
+    }
   }
 
-
-
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  index_t literal( var_t var, bool complement = false )
+  value_t literal( var_t var, bool complement = false )
   {
-    return unique( var, constant( !complement ), constant( complement ) );
+    return unique( var, ref(constant( !complement )), ref(constant( complement )) );
   }
 
   /**********************************************************/
@@ -136,290 +188,361 @@ public:
   /**********************************************************/
 
   /* Compute ~f */
-  index_t NOT( index_t f )
+  value_t NOT( value_t f )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    ++num_invoke_not;
+    // assert( f < nodes.size() && "Make sure f exists." );
 
-    /* trivial cases */
-    if ( f == constant( false ) )
-    {
-      return constant( true );
-    }
-    if ( f == constant( true ) )
-    {
-      return constant( false );
-    }
+    // /* trivial cases */
+    // if ( f == constant( false ) )
+    // {
+    //   return constant( true );
+    // }
+    // if ( f == constant( true ) )
+    // {
+    //   return constant( false );
+    // }
 
-    Node const& F = nodes[f];
-    var_t x = F.v;
-    index_t f0 = F.E, f1 = F.T;
+    // Node const& F = nodes[f];
+    // var_t x = F.v;
+    // index_t f0 = F.E, f1 = F.T;
 
-    index_t const r0 = NOT( f0 );
-    index_t const r1 = NOT( f1 );
-    return unique( x, r1, r0 );
+    // index_t const r0 = NOT( f0 );
+    // index_t const r1 = NOT( f1 );
+    return getFlippedReference(f);
   }
 
   /* Compute f ^ g */
-  index_t XOR( index_t f, index_t g )
+  value_t XOR( value_t f, value_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( f < refs.size() && "Make sure f exists." );
+    assert( g < refs.size() && "Make sure g exists." );
+
     ++num_invoke_xor;
+
+    value_t res = 0;
 
     /* trivial cases */
     if ( f == g )
     {
-      return constant( false );
-    }
-    if ( f == constant( false ) )
-    {
-      return g;
-    }
-    if ( g == constant( false ) )
-    {
-      return f;
-    }
-    if ( f == constant( true ) )
-    {
-      return NOT( g );
-    }
-    if ( g == constant( true ) )
-    {
-      return NOT( f );
-    }
-    if ( f == NOT( g ) )
-    {
-      return constant( true );
+      res = constant( false );
+    } else if ( f == constant( false ) ){
+      res = g;
+    } else if ( g == constant( false ) ){
+      res = f;
+    } else if ( f == constant( true ) ){
+      res = NOT( g );
+    } else if ( g == constant( true ) ){
+      res = NOT( f );
+    } else if ( f == NOT( g ) ){
+      res = constant( true );
+    } else {
+      NodeReference rF = refs[f];
+      NodeReference rG = refs[g];
+
+      Node const& F = nodes[rF.node_idx];
+      Node const& G = nodes[rG.node_idx];
+
+      var_t x;
+      value_t f0, f1, g0, g1;
+      if ( F.v < G.v ) /* F is on top of G */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = g1 = g;
+      }
+      else if ( G.v < F.v ) /* G is on top of F */
+      {
+        x = G.v;
+        f0 = f1 = f;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+      else /* F and G are at the same level */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+
+      value_t r0, r1;
+
+      auto r0_lookup = lookUpBinaryComputedTable(xor_uni, f0, g0);
+      if(r0_lookup.first){
+        r0 = r0_lookup.second;
+      } else {
+        r0 = XOR( f0, g0 );
+      }
+
+      auto r1_lookup = lookUpBinaryComputedTable(xor_uni, f1, g1);
+      if(r1_lookup.first){
+        r1 = r1_lookup.second;
+      } else {
+        r1 = XOR(f1, g1);
+      }
+      res = unique( x, ref(r1), ref(r0));
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    var_t x;
-    index_t f0, f1, g0, g1;
-    if ( F.v < G.v ) /* F is on top of G */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = g1 = g;
-    }
-    else if ( G.v < F.v ) /* G is on top of F */
-    {
-      x = G.v;
-      f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
-    }
-    else /* F and G are at the same level */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
-    }
+    registerToBinaryComputedTable(xor_uni, f, g, res);
+    registerToBinaryComputedTable(xor_uni, getFlippedReference(f), g, getFlippedReference(res));
+    registerToBinaryComputedTable(xor_uni, f, getFlippedReference(g), getFlippedReference(res));
+    registerToBinaryComputedTable(xor_uni, getFlippedReference(f), getFlippedReference(g), res);
 
-    index_t const r0 = XOR( f0, g0 );
-    index_t const r1 = XOR( f1, g1 );
-    return unique( x, r1, r0 );
+    return res;
   }
 
   /* Compute f & g */
-  index_t AND( index_t f, index_t g )
+  value_t AND( value_t f, value_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( f < refs.size() && "Make sure f exists." );
+    assert( g < refs.size() && "Make sure g exists." );
     ++num_invoke_and;
 
+    value_t res = 0;
+
     /* trivial cases */
-    if ( f == constant( false ) || g == constant( false ) )
-    {
-      return constant( false );
-    }
-    if ( f == constant( true ) )
-    {
-      return g;
-    }
-    if ( g == constant( true ) )
-    {
-      return f;
-    }
-    if ( f == g )
-    {
-      return f;
+    if ( f == constant( false ) || g == constant( false ) ){
+      res = constant( false );
+    } else if ( f == constant( true ) ){
+      res = g;
+    } else if ( g == constant( true ) ){
+      res = f;
+    } else if ( f == g ){
+      res = f;
+    } else {
+      NodeReference rF = refs[f];
+      NodeReference rG = refs[g];
+
+      Node const& F = nodes[rF.node_idx];
+      Node const& G = nodes[rG.node_idx];
+
+      var_t x;
+      value_t f0, f1, g0, g1;
+      if ( F.v < G.v ) /* F is on top of G */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = g1 = g;
+      }
+      else if ( G.v < F.v ) /* G is on top of F */
+      {
+        x = G.v;
+        f0 = f1 = f;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+      else /* F and G are at the same level */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+
+      value_t r0, r1;
+      auto look_r0 = lookUpBinaryComputedTable(and_uni, f0, g0);
+      if(look_r0.first){
+        r0 = look_r0.second;
+      } else {
+        r0 = AND( f0, g0 );
+      }
+      auto look_r1 = lookUpBinaryComputedTable(and_uni, f1, g1);
+      if(look_r1.first){
+        r1 = look_r1.second;
+      } else {
+        r1 = AND( f1, g1 );
+      }
+      res = unique( x, ref(r1), ref(r0));
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    var_t x;
-    index_t f0, f1, g0, g1;
-    if ( F.v < G.v ) /* F is on top of G */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = g1 = g;
-    }
-    else if ( G.v < F.v ) /* G is on top of F */
-    {
-      x = G.v;
-      f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
-    }
-    else /* F and G are at the same level */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
-    }
+    registerToBinaryComputedTable(and_uni, f, g, res);
+    registerToBinaryComputedTable(or_uni, getFlippedReference(f), getFlippedReference(g), getFlippedReference(res));
 
-    index_t const r0 = AND( f0, g0 );
-    index_t const r1 = AND( f1, g1 );
-    return unique( x, r1, r0 );
+    return res;
   }
 
   /* Compute f | g */
-  index_t OR( index_t f, index_t g )
+  value_t OR( value_t f, value_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( f < refs.size() && "Make sure f exists." );
+    assert( g < refs.size() && "Make sure g exists." );
     ++num_invoke_or;
 
+    value_t res = 0;
+
     /* trivial cases */
-    if ( f == constant( true ) || g == constant( true ) )
-    {
-      return constant( true );
-    }
-    if ( f == constant( false ) )
-    {
-      return g;
-    }
-    if ( g == constant( false ) )
-    {
-      return f;
-    }
-    if ( f == g )
-    {
-      return f;
+    if ( f == constant( true ) || g == constant( true ) ){
+      res = constant( true );
+    } else if ( f == constant( false ) ){
+      res = g;
+    } else if ( g == constant( false ) ){
+      res = f;
+    } else if ( f == g ) {
+      res = f;
+    } else {
+      NodeReference rF = refs[f];
+      NodeReference rG = refs[g];
+
+      Node const& F = nodes[rF.node_idx];
+      Node const& G = nodes[rG.node_idx];
+
+      var_t x;
+      value_t f0, f1, g0, g1;
+      if ( F.v < G.v ) /* F is on top of G */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = g1 = g;
+      }
+      else if ( G.v < F.v ) /* G is on top of F */
+      {
+        x = G.v;
+        f0 = f1 = f;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+      else /* F and G are at the same level */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+        g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+      }
+
+      value_t r0, r1;
+      auto look_r0 = lookUpBinaryComputedTable(or_uni, f0, g0);
+      if(look_r0.first){
+        r0 = look_r0.second;
+      } else {
+        r0 = OR( f0, g0 );
+      }
+      auto look_r1 = lookUpBinaryComputedTable(or_uni, f1, g1);
+      if(look_r1.first){
+        r1 = look_r1.second;
+      } else {
+        r1 = OR( f1, g1 );
+      }
+      res = unique( x, ref(r1), ref(r0) );
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    var_t x;
-    index_t f0, f1, g0, g1;
-    if ( F.v < G.v ) /* F is on top of G */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = g1 = g;
-    }
-    else if ( G.v < F.v ) /* G is on top of F */
-    {
-      x = G.v;
-      f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
-    }
-    else /* F and G are at the same level */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
-    }
+    registerToBinaryComputedTable(or_uni, f, g, res);
+    registerToBinaryComputedTable(and_uni, getFlippedReference(f), getFlippedReference(g), getFlippedReference(res));
 
-    index_t const r0 = OR( f0, g0 );
-    index_t const r1 = OR( f1, g1 );
-    return unique( x, r1, r0 );
+    return res;
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
-  index_t ITE( index_t f, index_t g, index_t h )
+  value_t ITE( value_t f, value_t g, value_t h )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
-    assert( h < nodes.size() && "Make sure h exists." );
+    assert( f < refs.size() && "Make sure f exists." );
+    assert( g < refs.size() && "Make sure g exists." );
+    assert( h < refs.size() && "Make sure h exists." );
     ++num_invoke_ite;
 
+    value_t res = 0;
+    
     /* trivial cases */
-    if ( f == constant( true ) )
-    {
-      return g;
-    }
-    if ( f == constant( false ) )
-    {
-      return h;
-    }
-    if ( g == h )
-    {
-      return g;
+    if ( f == constant( true ) ){
+      res = g;
+    } else if ( f == constant( false ) ){
+      res = h;
+    } else if ( g == h ){
+      res = g;
+    } else {
+      NodeReference &rF = refs[f];
+      NodeReference &rG = refs[g];
+      NodeReference &rH = refs[h];
+
+      Node const& F = nodes[rF.node_idx];
+      Node const& G = nodes[rG.node_idx];
+      Node const& H = nodes[rH.node_idx];
+
+      var_t x;
+      value_t f0, f1, g0, g1, h0, h1;
+      if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
+      {
+        x = F.v;
+        f0 = rF.flipped ? getFlippedReference(F.E) : F.E;
+        f1 = rF.flipped ? getFlippedReference(F.T) : F.T;
+        if ( G.v == F.v )
+        {
+          g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+          g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+        }
+        else
+        {
+          g0 = g1 = g;
+        }
+        if ( H.v == F.v )
+        {
+          h0 = rH.flipped ? getFlippedReference(H.E) : H.E;
+          h1 = rH.flipped ? getFlippedReference(H.T) : H.T;
+        }
+        else
+        {
+          h0 = h1 = h;
+        }
+      }
+      else /* F.v > min(G.v, H.v) */
+      {
+        f0 = f1 = f;
+        if ( G.v < H.v )
+        {
+          x = G.v;
+          g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+          g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+          h0 = h1 = h;
+        }
+        else if ( H.v < G.v )
+        {
+          x = H.v;
+          g0 = g1 = g;
+          h0 = rH.flipped ? getFlippedReference(H.E) : H.E;
+          h1 = rH.flipped ? getFlippedReference(H.T) : H.T;
+        }
+        else /* G.v == H.v */
+        {
+          x = G.v;
+          g0 = rG.flipped ? getFlippedReference(G.E) : G.E;
+          g1 = rG.flipped ? getFlippedReference(G.T) : G.T;
+          h0 = rH.flipped ? getFlippedReference(H.E) : H.E;
+          h1 = rH.flipped ? getFlippedReference(H.T) : H.T;
+        }
+      }
+
+      value_t r0, r1;
+
+      auto r0_index = std::make_tuple(f0, g0, h0);
+      auto r0_search = ite_uni.find(r0_index);
+      if(r0_search != ite_uni.end()){
+        r0 = r0_search->second;
+      } else {
+        r0 = ITE( f0, g0, h0 );
+      }
+
+      auto r1_index = std::make_tuple(f1, g1, h1);
+      auto r1_search = ite_uni.find(r1_index);
+      if(r1_search != ite_uni.end()){
+        r1 = r1_search->second;
+      } else {
+        r1 = ITE(f1, g1, h1);
+      }
+
+      res = unique( x, ref(r1), ref(r0));
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    Node const& H = nodes[h];
-    var_t x;
-    index_t f0, f1, g0, g1, h0, h1;
-    if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
-    {
-      x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      if ( G.v == F.v )
-      {
-        g0 = G.E;
-        g1 = G.T;
-      }
-      else
-      {
-        g0 = g1 = g;
-      }
-      if ( H.v == F.v )
-      {
-        h0 = H.E;
-        h1 = H.T;
-      }
-      else
-      {
-        h0 = h1 = h;
-      }
-    }
-    else /* F.v > min(G.v, H.v) */
-    {
-      f0 = f1 = f;
-      if ( G.v < H.v )
-      {
-        x = G.v;
-        g0 = G.E;
-        g1 = G.T;
-        h0 = h1 = h;
-      }
-      else if ( H.v < G.v )
-      {
-        x = H.v;
-        g0 = g1 = g;
-        h0 = H.E;
-        h1 = H.T;
-      }
-      else /* G.v == H.v */
-      {
-        x = G.v;
-        g0 = G.E;
-        g1 = G.T;
-        h0 = H.E;
-        h1 = H.T;
-      }
-    }
+    ite_uni[std::make_tuple(f, g, h)] = res;
+    ite_uni[std::make_tuple(f, getFlippedReference(g), getFlippedReference(h))] = getFlippedReference(res);
+    ite_uni[std::make_tuple(getFlippedReference(f), h, g)] = res;
+    ite_uni[std::make_tuple(getFlippedReference(f), getFlippedReference(h), getFlippedReference(g))] = getFlippedReference(res);
 
-    index_t const r0 = ITE( f0, g0, h0 );
-    index_t const r1 = ITE( f1, g1, h1 );
-    return unique( x, r1, r0 );
+    return res;
   }
 
   /**********************************************************/
@@ -427,7 +550,7 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print( index_t f, std::ostream& os = std::cout ) const
+  void print( value_t f, std::ostream& os = std::cout ) const
   {
     for ( auto i = 0u; i < nodes[f].v; ++i )
     {
@@ -457,9 +580,9 @@ public:
   }
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt( index_t f ) const
+  Truth_Table get_tt( value_t f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( f < refs.size() && "Make sure f exists." );
     //assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
 
     if ( f == constant( false ) )
@@ -470,30 +593,29 @@ public:
     {
       return ~Truth_Table( num_vars() );
     }
+
+    NodeReference rF = refs[f];
+    Node nF = nodes[rF.node_idx];
     
     /* Shannon expansion: f = x f_x + x' f_x' */
-    var_t const x = nodes[f].v;
-    index_t const fx = nodes[f].T;
-    index_t const fnx = nodes[f].E;
+    var_t const x = nF.v;
+    index_t const fx = nF.T;
+    index_t const fnx = nF.E;
     Truth_Table const tt_x = create_tt_nth_var( num_vars(), x );
     Truth_Table const tt_nx = create_tt_nth_var( num_vars(), x, false );
-    return ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) );
-  }
-
-  /* Whether `f` is dead (having a reference count of 0). */
-  bool is_dead( index_t f ) const
-  {
-    /* TODO */
-    return false;
+    auto res = ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) );
+    if(rF.flipped)
+      return ~res;
+    return res;
   }
 
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() const
   {
     uint64_t n = 0u;
-    for ( auto i = 2u; i < nodes.size(); ++i )
+    for ( auto i = 1u; i < nodes.size(); ++i )
     {
-      if ( !is_dead( i ) )
+      if ( nodes[i].reference_count != 0)
       {
         ++n;
       }
@@ -502,25 +624,28 @@ public:
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes( index_t f ) const
+  uint64_t num_nodes( value_t f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert(f < refs.size() && "Make sure f exists.");
+    //assert( f < nodes.size() && "Make sure f exists." );
 
     if ( f == constant( false ) || f == constant( true ) )
     {
       return 0u;
     }
 
+
+
     std::vector<bool> visited( nodes.size(), false );
     visited[0] = true;
     visited[1] = true;
 
-    return num_nodes_rec( f, visited );
+    return num_nodes_rec( refs[f].node_idx, visited );
   }
 
   uint64_t num_invoke() const
   {
-    return num_invoke_not + num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
+    return num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite - repeat_invoke;
   }
 
 private:
@@ -535,28 +660,83 @@ private:
 
     uint64_t n = 0u;
     Node const& F = nodes[f];
-    assert( F.T < nodes.size() && "Make sure the children exist." );
-    assert( F.E < nodes.size() && "Make sure the children exist." );
-    if ( !visited[F.T] )
+    assert( F.T < refs.size() && "Make sure the children exist." );
+    assert( F.E < refs.size() && "Make sure the children exist." );
+    index_t tIndex = refs[F.T].node_idx;
+    assert(tIndex < nodes.size() && "Make sure the children point to a valid node.");
+    if ( !visited[tIndex] )
     {
-      n += num_nodes_rec( F.T, visited );
-      visited[F.T] = true;
+      n += num_nodes_rec( tIndex, visited );
+      visited[tIndex] = true;
     }
-    if ( !visited[F.E] )
+    index_t eIndex = refs[F.E].node_idx;
+    assert(eIndex < nodes.size() && "Make sure the children point to a valid node.");
+    if ( !visited[eIndex] )
     {
-      n += num_nodes_rec( F.E, visited );
-      visited[F.E] = true;
+      n += num_nodes_rec( eIndex, visited );
+      visited[eIndex] = true;
     }
     return n + 1u;
   }
 
+  value_t getFlippedReference(value_t ref){
+    NodeReference &n = refs[ref];
+    return buildReference(!n.flipped, n.node_idx);
+  }
+
+  value_t buildReference(bool flipped, index_t node_idx){
+    Node &node = nodes[node_idx];
+    if(flipped && node.neg_ref != std::numeric_limits<index_t>::max())
+      return node.neg_ref;
+    else if(!flipped && node.pos_ref != std::numeric_limits<index_t>::max())
+      return node.pos_ref;
+    else {
+      auto res = refs.size(); // get the size now.
+      refs.emplace_back(NodeReference{
+        flipped, node_idx
+      });
+      if(flipped)
+        node.neg_ref = res;
+      else
+        node.pos_ref = res;
+      return res;
+    }
+  }
+
 private:
   std::vector<Node> nodes;
-  std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
+  std::vector<NodeReference> refs;
+  std::vector<std::unordered_map<std::pair<value_t, value_t>, index_t>> unique_table;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
 
+  using binary_unique_table_t = std::unordered_map<std::pair<value_t, value_t>, value_t>;
+  using trinary_unique_table_t = std::unordered_map<std::tuple<value_t, value_t, value_t>, value_t>;
+
+  binary_unique_table_t and_uni;
+  binary_unique_table_t or_uni;
+  binary_unique_table_t xor_uni;
+
+  std::pair<bool, value_t> lookUpBinaryComputedTable(const binary_unique_table_t &table, value_t f, value_t g) const {
+    if(f > g) std::swap(f, g);
+    auto index = std::make_pair(f, g);
+    auto res = table.find(index);
+    if(res != table.end()){
+      return std::make_pair(true, res->second);
+    }
+    return std::make_pair(false, 0); // prefer std::optional? We can not use C++17 right?
+  }
+
+  void registerToBinaryComputedTable(binary_unique_table_t &t, value_t f, value_t g, value_t res){
+    if(f > g) std::swap(f, g);
+    auto index = std::make_pair(f, g);
+    t[index] = res;
+  }
+
+  trinary_unique_table_t ite_uni;
+
   /* statistics */
-  uint64_t num_invoke_not, num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
+  uint64_t num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
+  uint64_t repeat_invoke;
 };

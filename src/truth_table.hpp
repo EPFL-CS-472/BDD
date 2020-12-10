@@ -242,11 +242,11 @@ inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, 
 {
   assert (var < num_var);
   auto res = Truth_Table(num_var);
-  uint32_t pattern_size = (1 << var);
-  for(auto i = 0u; i < (1 << num_var); i += 2 * pattern_size){
-    for(auto j = 0; j < pattern_size; ++j)
+  uint32_t pattern_size = (1u << var);
+  for(auto i = 0u; i < (1u << num_var); i += 2 * pattern_size){
+    for(auto j = 0u; j < pattern_size; ++j)
       res.bits[i + j] = !polarity;
-    for(auto j = 0; j < pattern_size; ++j)
+    for(auto j = 0u; j < pattern_size; ++j)
       res.bits[i + pattern_size + j] = polarity;
   }
   return res;
