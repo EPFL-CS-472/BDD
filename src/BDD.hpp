@@ -129,7 +129,7 @@ public:
     /* Reduction rule: Identical children */
     if ( T == E )
     {
-      return T;
+      return ref(T);
     }
     
     bool result_flipped = false;
@@ -151,6 +151,8 @@ public:
     else
     {
       /* Create a new node and insert it to the unique table. */
+      ref(T);
+      ref(E);
       index_t const new_index = nodes.size();
       nodes.emplace_back( Node({var, T, E, std::numeric_limits<index_t>::max(), std::numeric_limits<index_t>::max(), 0}) );
       unique_table[var][{T, E}] = new_index;
@@ -166,6 +168,7 @@ public:
   }
 
   void deref(index_t other){
+    if(other == 0 || other == 1) return; 
     NodeReference &rO = refs[other];
     Node &nO = nodes[rO.node_idx];
     assert(nO.reference_count > 0 && "It's impossible to delete a dead node!");
@@ -180,7 +183,7 @@ public:
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
   value_t literal( var_t var, bool complement = false )
   {
-    return unique( var, ref(constant( !complement )), ref(constant( complement )) );
+    return unique( var, constant( !complement ), constant( complement ));
   }
 
   /**********************************************************/
@@ -282,7 +285,7 @@ public:
       } else {
         r1 = XOR(f1, g1);
       }
-      res = unique( x, ref(r1), ref(r0));
+      res = unique(x, r1, r0);
     }
 
     registerToBinaryComputedTable(xor_uni, f, g, res);
@@ -356,7 +359,7 @@ public:
       } else {
         r1 = AND( f1, g1 );
       }
-      res = unique( x, ref(r1), ref(r0));
+      res = unique(x, r1, r0);
     }
 
     registerToBinaryComputedTable(and_uni, f, g, res);
@@ -428,7 +431,7 @@ public:
       } else {
         r1 = OR( f1, g1 );
       }
-      res = unique( x, ref(r1), ref(r0) );
+      res = unique(x, r1, r0);
     }
 
     registerToBinaryComputedTable(or_uni, f, g, res);
@@ -534,7 +537,7 @@ public:
         r1 = ITE(f1, g1, h1);
       }
 
-      res = unique( x, ref(r1), ref(r0));
+      res = unique(x, r1, r0);
     }
 
     ite_uni[std::make_tuple(f, g, h)] = res;
