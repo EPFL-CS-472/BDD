@@ -1,5 +1,5 @@
 #pragma once
-
+//coucou 2
 #include "truth_table.hpp"
 
 #include <iostream>
