@@ -100,7 +100,7 @@ int main()
       passed = false;
     }
   }
-
+*/
   {
     cout << "test 01: computed table" << endl;
     BDD bdd( 2 );
@@ -115,7 +115,7 @@ int main()
     cout << tt << endl;
 
   }
-
+/*
   {
     cout << "test 02: complemented edges" << endl;
     BDD bdd( 2 );
@@ -234,7 +234,7 @@ int main()
    // print(bdd.nodes);
     auto const f = bdd.XOR( bdd.ITE( x0, x1, x2 ), bdd.AND( x0, x3 ) );
    // print(bdd.nodes);
-    print(bdd.unique_table);
+   // print(bdd.unique_table);
     auto const tt = bdd.get_tt( f );
     cout << tt << endl;
    // print(bdd.nodes);

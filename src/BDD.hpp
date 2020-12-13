@@ -63,6 +63,15 @@ public:
     Edge T; /* index of THEN child */
     Edge E; /* index of ELSE child */
   };
+  struct VectorHasher {
+      int operator()(const std::vector<index_t> &V) const {
+          int hash = V.size();
+          for(auto &i : V) {
+              hash ^= i + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+          }
+          return hash;
+      }
+  };
 
 
 
@@ -98,7 +107,7 @@ public:
   {
     return value ? 1 : 0;
   }
-
+  /* TODO : Avoid recounting at each addition (if possible) */
   void count_references()
   {
        for(auto i = 2u; i < nodes.size(); ++i)
@@ -110,11 +119,31 @@ public:
         ref_count[nodes.at(i).T.child]++;
         ref_count[nodes.at(i).E.child]++;
        }
-       for(auto i = 2u; i < nodes.size(); ++i)
+      /* for(auto i = 2u; i < nodes.size(); ++i)
        {
            std::cout << "Node " << i << " has refs : " << ref_count[i] << std::endl;
-       }
+       }*/
 
+  }
+
+  index_t lookup_computed_table(index_t then, index_t els)
+  {
+      auto ret = computed_table.find({then, els});
+     // std::cout << "lct" << then << "  " << els << std::endl;
+      if (ret != computed_table.end()){
+        //  std::cout << ret->first.first << "   " << ret->first.second << "    " << ret->second << std::endl;
+          return ret->second;
+      }
+      else{
+      //    std::cout << "LCT NULL" << std::endl;
+          return NULL;
+      }
+  }
+
+  void computed_table_insert(std::vector<index_t> ops, index_t ret)
+  {
+     // std::cout << "CTI T : " << then << " else :  " << els << "  ret :  " << ret << std::endl;
+      computed_table[ops] = ret;
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
@@ -167,6 +196,9 @@ public:
   Edge NOT( Edge f )
   {
     assert( f.child < nodes.size() && "Make sure f exists." );
+    Edge ret = {0, lookup_computed_table(f.child, f.child)};
+    if(ret.child)
+        return ret;
     ++num_invoke_not;
 
     /* trivial cases */
@@ -185,7 +217,11 @@ public:
 
     Edge const r0 = NOT( f0 );
     Edge const r1 = NOT( f1 );
-    return unique( x, r1, r0 );
+    Edge r = unique( x, r1, r0 );
+    std::vector<index_t> ops = {f.child};
+    computed_table_insert(ops, r.child);
+    return r;
+
   }
 
   /* Compute f ^ g */
@@ -193,6 +229,9 @@ public:
   {
     assert( f.child < nodes.size() && "Make sure f exists." );
     assert( g.child < nodes.size() && "Make sure g exists." );
+    Edge ret = {0, lookup_computed_table(f.child, g.child)};
+    if(ret.child)
+        return ret;
     ++num_invoke_xor;
 
     /* trivial cases */
@@ -250,7 +289,10 @@ public:
 
     Edge const r0 = XOR( f0, g0 );
     Edge const r1 = XOR( f1, g1 );
-    return unique( x, r1, r0 );
+    Edge r = unique( x, r1, r0 );
+    std::vector<index_t> ops = {f.child, g.child};
+    computed_table_insert(ops, r.child);
+    return r;
   }
 
   /* Compute f & g */
@@ -259,6 +301,9 @@ public:
     std::cout << f.child << std::endl;
     assert( f.child < nodes.size() && "Make sure f exists." );
     assert( g.child < nodes.size() && "Make sure g exists." );
+    Edge ret = {0, lookup_computed_table(f.child, g.child)};
+    if(ret.child)
+        return ret;
     ++num_invoke_and;
 
     /* trivial cases */
@@ -308,7 +353,10 @@ public:
 
     Edge const r0 = AND( f0, g0 );
     Edge const r1 = AND( f1, g1 );
-    return unique( x, r1, r0 );
+    Edge r =  unique( x, r1, r0 );
+    std::vector<index_t> ops = {f.child, g.child};
+    computed_table_insert(ops, r.child);
+    return r;
   }
 
   /* Compute f | g */
@@ -316,6 +364,9 @@ public:
   {
     assert( f.child < nodes.size() && "Make sure f exists." );
     assert( g.child < nodes.size() && "Make sure g exists." );
+    Edge ret = {0, lookup_computed_table(f.child, g.child)};
+    if(ret.child)
+        return ret;
     ++num_invoke_or;
 
     /* trivial cases */
@@ -365,7 +416,10 @@ public:
 
     Edge const r0 = OR( f0, g0 );
     Edge const r1 = OR( f1, g1 );
-    return unique( x, r1, r0 );
+    Edge r = unique( x, r1, r0 );
+    std::vector<index_t> ops = {f.child, g.child};
+    computed_table_insert(ops, r.child);
+    return r;
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
@@ -374,6 +428,9 @@ public:
     assert( f.child < nodes.size() && "Make sure f exists." );
     assert( g.child < nodes.size() && "Make sure g exists." );
     assert( h.child < nodes.size() && "Make sure h exists." );
+    Edge ret = {0, lookup_computed_table(g.child, h.child)};
+    if(ret.child)
+        return ret;
     ++num_invoke_ite;
 
     /* trivial cases */
@@ -448,7 +505,10 @@ public:
 
     Edge const r0 = ITE( f0, g0, h0 );
     Edge const r1 = ITE( f1, g1, h1 );
-    return unique( x, r1, r0 );
+    Edge r = unique( x, r1, r0 );
+    std::vector<index_t> ops = {f.child, g.child, h.child};
+    computed_table_insert(ops, r.child);
+    return r;
   }
 
   /**********************************************************/
@@ -488,6 +548,7 @@ public:
   /* Get the truth table of the BDD rooted at node f. */
   Truth_Table get_tt( Edge f ) const
   {
+   // std::cout << "get tt" << f.child << std::endl;
     assert( f.child < nodes.size() && "Make sure f exists." );
     assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
 
@@ -582,10 +643,11 @@ public:
     return n + 1u;
   }
 
-//private:
+private:
   std::vector<Node> nodes;
   std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
   std::unordered_map<index_t,uint32_t> ref_count;
+  std::unordered_map<std::vector<index_t>, index_t,VectorHasher> computed_table;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
