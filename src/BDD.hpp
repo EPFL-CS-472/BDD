@@ -80,9 +80,9 @@ public:
     : unique_table( num_vars ), num_invoke_not( 0u ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
       num_invoke_xor( 0u ), num_invoke_ite( 0u )
   {
-    nodes.emplace_back( Node({num_vars, {.inv=0,.child=0}, {.inv=0,.child=0}}) ); /* constant 0 */
+    nodes.emplace_back( Node({num_vars, {.inv=false,.child=0}, {.inv=false,.child=0}}) ); /* constant 0 */
   //  ref_count.at(nodes.size()) = 0;
-    nodes.emplace_back( Node({num_vars, {.inv=0,.child=1}, {.inv=0,.child=1}}) ); /* constant 1 */
+    nodes.emplace_back( Node({num_vars, {.inv=false,.child=1}, {.inv=false,.child=1}}) ); /* constant 1 */
   //  ref_count.at(nodes.size()) = 0;
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
      * Their `v` is `num_vars` and their indices are 0 and 1.
@@ -146,6 +146,64 @@ public:
       computed_table[ops] = ret;
   }
 
+  bool invert_edges_of_node(index_t node){
+      bool ret = false;
+      for(auto i = 0u; i < nodes.size(); ++i){
+          if (i == node)
+              nodes.at(i).E.inv = true;
+          if(nodes.at(i).E.child == node){
+              nodes.at(i).E.inv = !nodes.at(i).E.inv;
+              ret = true;
+          }
+          if(nodes.at(i).T.child == node){
+              nodes.at(i).T.inv = !nodes.at(i).T.inv;
+              ret = true;
+          }
+      }
+      return ret;
+  }
+
+  bool checkChildren(Node n){
+      bool ret = true;
+      Edge e = n.E;
+      Edge t = n.T;
+      ret &= (nodes.at(e.child).E == nodes.at(t.child).E);
+      ret &= (nodes.at(e.child).T == nodes.at(t.child).T);
+      return ret;
+  }
+
+  void cce_conversion()
+  {
+      // 1. mark all "Else" edges (no need)
+      // 2. Remove 1 Leafs (maybe not yet)
+      // 3. Invert all edges leading to 0
+      for(auto i = 0u; i < nodes.size(); ++i)
+      {
+          if(nodes.at(i).E.child == 0){
+              nodes.at(i).E.child = 1;
+              nodes.at(i).E.inv = true;
+          }else if (nodes.at(i).T.child == 0){
+              nodes.at(i).T.child = 1;
+              nodes.at(i).T.inv = true;
+          }
+      }
+      // 4. Remove inversion from all "Then" edges by inverting all other edges from/to the Node
+      bool edge_modified = true;
+      while(edge_modified){
+          edge_modified = false;
+          for(auto i = 0u; i < nodes.size(); ++i){
+              if(nodes.at(i).T.inv){
+                 nodes.at(i).T.inv = false;
+                 edge_modified |= invert_edges_of_node(i);
+              }
+          }
+      }
+      for(auto i = 0u; i < nodes.size(); ++i){
+          if(checkChildren(nodes.at(i))){
+            nodes.at(i).E = nodes.at(i).T;
+          }
+      }
+  }
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
   Edge unique( var_t var, Edge T, Edge E )
@@ -185,7 +243,7 @@ public:
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
   Edge literal( var_t var, bool complement = false )
   {
-    return unique( var, {.inv=0, .child=constant( !complement )}, {.inv=0, .child=constant( complement )} );
+    return unique( var, {.inv=false, .child=constant( !complement )}, {.inv=false, .child=constant( complement )} );
   }
 
   /**********************************************************/
@@ -624,7 +682,7 @@ public:
   uint64_t num_nodes_rec( Edge f, std::vector<bool>& visited ) const
   {
     assert( f.child < nodes.size() && "Make sure f exists." );
-    
+    std::cout << "Reaching Node " << f.child << std::endl;
 
     uint64_t n = 0u;
     Node const& F = nodes[f.child];

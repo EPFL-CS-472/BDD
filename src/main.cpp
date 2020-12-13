@@ -115,7 +115,7 @@ int main()
     cout << tt << endl;
 
   }
-/*
+
   {
     cout << "test 02: complemented edges" << endl;
     BDD bdd( 2 );
@@ -123,12 +123,15 @@ int main()
     auto const x1 = bdd.literal( 1 );
     auto const f = bdd.XOR( x0, x1 );
     auto const tt = bdd.get_tt( f );
-
+    bdd.print(f);
+    bdd.cce_conversion();
+    bdd.count_references();
+    bdd.print(f);
     passed &= check( tt, "0110" );
     cout << "  checking BDD size (reachable nodes)";
     passed &= check( bdd.num_nodes( f ), 2 );
   }
-*/
+
   {
     cout << "test 03: reference count" << endl;
     BDD bdd( 2 );
@@ -238,14 +241,7 @@ int main()
     auto const tt = bdd.get_tt( f );
     cout << tt << endl;
    // print(bdd.nodes);
- /*   bdd.print(x0);
-    bdd.print(x1);
-    bdd.print(x2);
-    bdd.print(x3);
-    bdd.print( g );
-    bdd.print( h );
-    bdd.print( f );
-*/
+
 
     cout << f.child << " inv: " << f.inv << endl;
     passed &=check( tt, "0111001011011000" );
