@@ -128,7 +128,7 @@ int main()
     cout << "  checking BDD size (reachable nodes)";
     passed &= check( bdd.num_nodes( f ), 2 );
   }
-
+*/
   {
     cout << "test 03: reference count" << endl;
     BDD bdd( 2 );
@@ -140,7 +140,7 @@ int main()
     passed &= check( tt, "0110" );
     cout << "  checking BDD size (living nodes)";
     passed &= check( bdd.num_nodes(), 2 );
-  }*/
+  }
   {
     cout << "test 00: x0 XOR x1" << endl;
     BDD bdd( 2 );

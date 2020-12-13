@@ -72,7 +72,9 @@ public:
       num_invoke_xor( 0u ), num_invoke_ite( 0u )
   {
     nodes.emplace_back( Node({num_vars, {.inv=0,.child=0}, {.inv=0,.child=0}}) ); /* constant 0 */
+  //  ref_count.at(nodes.size()) = 0;
     nodes.emplace_back( Node({num_vars, {.inv=0,.child=1}, {.inv=0,.child=1}}) ); /* constant 1 */
+  //  ref_count.at(nodes.size()) = 0;
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
      * Their `v` is `num_vars` and their indices are 0 and 1.
      * (Note that the real variables range from 0 to `num_vars - 1`.)
@@ -95,6 +97,24 @@ public:
   index_t constant( bool value ) const
   {
     return value ? 1 : 0;
+  }
+
+  void count_references()
+  {
+       for(auto i = 2u; i < nodes.size(); ++i)
+       {
+           ref_count[i] = 0;
+       }
+       for(auto i= 2u; i < nodes.size(); ++i)
+       {
+        ref_count[nodes.at(i).T.child]++;
+        ref_count[nodes.at(i).E.child]++;
+       }
+       for(auto i = 2u; i < nodes.size(); ++i)
+       {
+           std::cout << "Node " << i << " has refs : " << ref_count[i] << std::endl;
+       }
+
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
@@ -126,7 +146,9 @@ public:
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
       nodes.emplace_back( Node({var, T, E}) );
+   //   ref_count.at(new_index) = 0;
       unique_table[var][{T.child, E.child}] = new_index;
+      count_references();
       return {0, new_index};
     }
   }
@@ -490,9 +512,12 @@ public:
   /* Whether `f` is dead (having a reference count of 0). */
   bool is_dead( index_t f ) const
   {
-    /* TODO */
-    return false;
+
+    return ref_count.at(f) == 0;
   }
+
+
+
 
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() const
@@ -560,6 +585,7 @@ public:
 //private:
   std::vector<Node> nodes;
   std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
+  std::unordered_map<index_t,uint32_t> ref_count;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
