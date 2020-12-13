@@ -21,7 +21,7 @@ namespace std {
   struct hash<tuple<uint32_t, uint32_t>> {
     using argument_type = tuple<uint32_t, uint32_t>;
     using result_type = size_t;
-    result_type operator() (argument_type const& in) const   {
+    result_type operator() (argument_type const& in) const {
       result_type seed = 0;
       hash_combine(seed, std::get<0>(in));
       hash_combine(seed, std::get<1>(in));
@@ -33,7 +33,7 @@ namespace std {
   struct hash<tuple<uint32_t, uint32_t, uint32_t>> {
     using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
     using result_type = size_t;
-    result_type operator() (argument_type const& in) const   {
+    result_type operator() (argument_type const& in) const {
       result_type seed = 0;
       hash_combine(seed, std::get<0>(in));
       hash_combine(seed, std::get<1>(in));
@@ -61,26 +61,26 @@ private:
    * This is just for easier understanding of the code.
    * This datatype will be used for node indices. */
 
-  struct Node   {
+  struct Node {
     var_t v; /* corresponding variable */
     signal_t T; /* signal of THEN child (should not be complemented) */
     signal_t E; /* signal of ELSE child */
   };
 
-  inline signal_t make_signal(index_t index, bool complement = false) const   {
+  inline signal_t make_signal(index_t index, bool complement = false) const {
     return complement ? (index << 1) + 1 : index << 1;
   }
 
-  inline index_t get_index(signal_t signal) const   {
+  inline index_t get_index(signal_t signal) const {
     assert((signal >> 1) < nodes.size());
     return signal >> 1;
   }
 
-  inline Node get_node(signal_t signal) const   {
+  inline Node get_node(signal_t signal) const {
     return nodes[get_index(signal)];
   }
 
-  inline bool is_complemented(signal_t signal) const   {
+  inline bool is_complemented(signal_t signal) const {
     return signal & 0x1;
   }
 
@@ -88,7 +88,7 @@ public:
   explicit BDD(uint32_t num_vars)
     : unique_table(num_vars), num_invoke_and(0u), num_invoke_or(0u),
     num_invoke_xor(0u), num_invoke_ite(0u), computed_table_AND(),
-    computed_table_OR(), computed_table_XOR(), computed_table_ITE()   {
+    computed_table_OR(), computed_table_XOR(), computed_table_ITE() {
     nodes.emplace_back(Node({ num_vars, 0, 0 })); /* constant 1 */
     refs.emplace_back(0);
   }
@@ -102,13 +102,15 @@ public:
   }
 
   /* Get the constant signal. */
-  signal_t constant(bool value) const   {
-    return value ? 0 /* the constant 1 node not inverted */ : 1 /* the constant 1 node inverted */;
+  signal_t constant(bool value) const {
+    return value ?
+      0 /* the constant 1 node not inverted */ :
+      1 /* the constant 1 node inverted */;
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  signal_t unique(var_t var, signal_t T, signal_t E)   {
+  signal_t unique(var_t var, signal_t T, signal_t E) {
     assert(var < num_vars() && "Variables range from 0 to `num_vars - 1`.");
     assert(get_node(T).v > var && "With static variable order, children can only be below the node.");
     assert(get_node(E).v > var && "With static variable order, children can only be below the node.");
@@ -125,7 +127,7 @@ public:
     if (it != unique_table[var].end()) {
       /* The required node already exists. Return it. */
       return make_signal(it->second, output_neg);
-    }     else     {
+    } else {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
       nodes.emplace_back(Node({ var, T, E }));
@@ -136,19 +138,19 @@ public:
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  signal_t literal(var_t var, bool complement = false)   {
+  signal_t literal(var_t var, bool complement = false) {
     return unique(var, constant(!complement), constant(complement));
   }
 
   /**********************************************************/
   /*********************** Ref & Deref **********************/
   /**********************************************************/
-  signal_t ref(signal_t f)   {
-    /* TODO */
+  signal_t ref(signal_t f) {
+    refs[get_index(f)] += 1;
     return f;
   }
 
-  void deref(signal_t f)   {
+  void deref(signal_t f) {
     /* TODO */
   }
 
@@ -158,11 +160,11 @@ public:
 
   /* Compute ~f */
   signal_t NOT(signal_t f) {
-    return (f & ~1) | (~(f & 1));
+    return (f & ~1) | ((~f) & 1);
   }
 
   /* Compute f ^ g */
-  signal_t XOR(signal_t f, signal_t g)   {
+  signal_t XOR(signal_t f, signal_t g) {
     ++num_invoke_xor;
 
     // assert(f < nodes.size() && "Make sure f exists.");
@@ -369,10 +371,6 @@ public:
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
   signal_t ITE(signal_t f, signal_t g, signal_t h) {
-    assert(f < nodes.size() && "Make sure f exists.");
-    assert(g < nodes.size() && "Make sure g exists.");
-    assert(h < nodes.size() && "Make sure h exists.");
-
     // /* check cache */
     const std::tuple<index_t, index_t, index_t> key({ f, g, h });
     // const auto it = ite_cache.find(key);
@@ -453,28 +451,28 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print(signal_t f, std::ostream& os = std::cout) const   {
+  void print(signal_t f, std::ostream& os = std::cout) const {
     Node const& F = get_node(f);
-    for (auto i = 0u; i < F.v; ++i)     {
+    for (auto i = 0u; i < F.v; ++i) {
       os << "  ";
     }
-    if (f <= 1)     {
+    if (f <= 1) {
       os << "constant " << (f ? "0" : "1") << std::endl;
-    }     else     {
-      if (is_complemented(f))       {
+    } else {
+      if (is_complemented(f)) {
         os << "!";
-      }       else       {
+      } else {
         os << " ";
       }
 
       os << "node " << get_index(f) << ": var = " << F.v << ", T = " << F.T
         << ", E = " << F.E << std::endl;
-      for (auto i = 0u; i < F.v; ++i)       {
+      for (auto i = 0u; i < F.v; ++i) {
         os << "  ";
       }
       os << "> THEN branch" << std::endl;
       print(F.T, os);
-      for (auto i = 0u; i < F.v; ++i)       {
+      for (auto i = 0u; i < F.v; ++i) {
         os << "  ";
       }
       os << "> ELSE branch" << std::endl;
@@ -483,7 +481,7 @@ public:
   }
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt(signal_t f) const   {
+  Truth_Table get_tt(signal_t f) const {
     Node const& F = get_node(f);
 
     if (f == constant(false)) {
@@ -498,23 +496,23 @@ public:
     signal_t const fnx = F.E;
     Truth_Table const tt_x = create_tt_nth_var(num_vars(), x);
     Truth_Table const tt_nx = create_tt_nth_var(num_vars(), x, false);
-    if (is_complemented(f))     {
+    if (is_complemented(f)) {
       return ~((tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx)));
-    }     else     {
+    } else {
       return (tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx));
     }
   }
 
   /* Whether `f` is dead (having a reference count of 0). */
-  bool is_dead(index_t f) const   {
+  bool is_dead(index_t f) const {
     return refs[f] == 0u;
   }
 
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() const {
     uint64_t n = 0u;
-    for (auto i = 1u; i < nodes.size(); ++i)     {
-      if (!is_dead(i))       {
+    for (auto i = 1u; i < nodes.size(); ++i) {
+      if (!is_dead(i)) {
         ++n;
       }
     }
@@ -522,8 +520,8 @@ public:
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes(signal_t f) const   {
-    if (f == constant(false) || f == constant(true))     {
+  uint64_t num_nodes(signal_t f) const {
+    if (f == constant(false) || f == constant(true)) {
       return 0u;
     }
 
@@ -533,7 +531,7 @@ public:
     return num_nodes_rec(get_index(f), visited);
   }
 
-  uint64_t num_invoke() const   {
+  uint64_t num_invoke() const {
     return num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
   }
 
@@ -542,16 +540,16 @@ private:
   /******************** Helper Functions ********************/
   /**********************************************************/
 
-  uint64_t num_nodes_rec(index_t f, std::vector<bool>& visited) const   {
+  uint64_t num_nodes_rec(index_t f, std::vector<bool>& visited) const {
     assert(f < nodes.size() && "Make sure f exists.");
 
     uint64_t n = 0u;
     Node const& F = nodes[f];
-    if (!visited[get_index(F.T)])     {
+    if (!visited[get_index(F.T)]) {
       n += num_nodes_rec(get_index(F.T), visited);
       visited[get_index(F.T)] = true;
     }
-    if (!visited[get_index(F.E)])     {
+    if (!visited[get_index(F.E)]) {
       n += num_nodes_rec(get_index(F.E), visited);
       visited[get_index(F.E)] = true;
     }
