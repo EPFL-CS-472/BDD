@@ -44,21 +44,35 @@ public:
   /* Similarly, declare `var_t` also as an alias for an unsigned integer.
    * This datatype will be used for representing variables. */
 
-private:
+public:
+  struct Edge
+  {
+    bool inv;
+    index_t child;
+
+    bool operator==(Edge r)
+    {
+      return this->inv == r.inv && this->child == r.child;
+    }
+
+
+  };
   struct Node
   {
     var_t v; /* corresponding variable */
-    index_t T; /* index of THEN child */
-    index_t E; /* index of ELSE child */
+    Edge T; /* index of THEN child */
+    Edge E; /* index of ELSE child */
   };
+
+
 
 public:
   explicit BDD( uint32_t num_vars )
     : unique_table( num_vars ), num_invoke_not( 0u ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
       num_invoke_xor( 0u ), num_invoke_ite( 0u )
   {
-    nodes.emplace_back( Node({num_vars, 0, 0}) ); /* constant 0 */
-    nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
+    nodes.emplace_back( Node({num_vars, {.inv=0,.child=0}, {.inv=0,.child=0}}) ); /* constant 0 */
+    nodes.emplace_back( Node({num_vars, {.inv=0,.child=1}, {.inv=0,.child=1}}) ); /* constant 1 */
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
      * Their `v` is `num_vars` and their indices are 0 and 1.
      * (Note that the real variables range from 0 to `num_vars - 1`.)
@@ -66,6 +80,7 @@ public:
      *
      * `unique_table` is initialized with `num_vars` empty maps. */
   }
+
 
   /**********************************************************/
   /***************** Basic Building Blocks ******************/
@@ -84,13 +99,13 @@ public:
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  index_t unique( var_t var, index_t T, index_t E )
+  Edge unique( var_t var, Edge T, Edge E )
   {
     assert( var < num_vars() && "Variables range from 0 to `num_vars - 1`." );
-    assert( T < nodes.size() && "Make sure the children exist." );
-    assert( E < nodes.size() && "Make sure the children exist." );
-    assert( nodes[T].v > var && "With static variable order, children can only be below the node." );
-    assert( nodes[E].v > var && "With static variable order, children can only be below the node." );
+    assert( T.child < nodes.size() && "Make sure the children exist." );
+    assert( E.child < nodes.size() && "Make sure the children exist." );
+    assert( nodes[T.child].v > var && "With static variable order, children can only be below the node." );
+    assert( nodes[E.child].v > var && "With static variable order, children can only be below the node." );
 
     /* Reduction rule: Identical children */
     if ( T == E )
@@ -99,26 +114,27 @@ public:
     }
 
     /* Look up in the unique table. */
-    const auto it = unique_table[var].find( {T, E} );
+    const auto it = unique_table[var].find( {T.child, E.child} );
     if ( it != unique_table[var].end() )
     {
       /* The required node already exists. Return it. */
-      return it->second;
+      /* TO FIX Either return node or edge but might be an issue" */
+      return {0, it->second};
     }
     else
     {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
       nodes.emplace_back( Node({var, T, E}) );
-      unique_table[var][{T, E}] = new_index;
-      return new_index;
+      unique_table[var][{T.child, E.child}] = new_index;
+      return {0, new_index};
     }
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  index_t literal( var_t var, bool complement = false )
+  Edge literal( var_t var, bool complement = false )
   {
-    return unique( var, constant( !complement ), constant( complement ) );
+    return unique( var, {.inv=0, .child=constant( !complement )}, {.inv=0, .child=constant( complement )} );
   }
 
   /**********************************************************/
@@ -126,67 +142,67 @@ public:
   /**********************************************************/
 
   /* Compute ~f */
-  index_t NOT( index_t f )
+  Edge NOT( Edge f )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
     ++num_invoke_not;
 
     /* trivial cases */
-    if ( f == constant( false ) )
+    if ( f.child == constant( false ) )
     {
-      return constant( true );
+      return {0, constant( true )};
     }
-    if ( f == constant( true ) )
+    if ( f.child == constant( true ) )
     {
-      return constant( false );
+      return {0, constant( false )};
     }
 
-    Node const& F = nodes[f];
+    Node const& F = nodes[f.child];
     var_t x = F.v;
-    index_t f0 = F.E, f1 = F.T;
+    Edge f0 = F.E, f1 = F.T;
 
-    index_t const r0 = NOT( f0 );
-    index_t const r1 = NOT( f1 );
+    Edge const r0 = NOT( f0 );
+    Edge const r1 = NOT( f1 );
     return unique( x, r1, r0 );
   }
 
   /* Compute f ^ g */
-  index_t XOR( index_t f, index_t g )
+  Edge XOR( Edge f, Edge g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
+    assert( g.child < nodes.size() && "Make sure g exists." );
     ++num_invoke_xor;
 
     /* trivial cases */
     if ( f == g )
     {
-      return constant( false );
+      return {0, constant( false )};
     }
-    if ( f == constant( false ) )
+    if ( f.child == constant( false ) )
     {
       return g;
     }
-    if ( g == constant( false ) )
+    if ( g.child == constant( false ) )
     {
       return f;
     }
-    if ( f == constant( true ) )
+    if ( f.child == constant( true ) )
     {
       return NOT( g );
     }
-    if ( g == constant( true ) )
+    if ( g.child == constant( true ) )
     {
       return NOT( f );
     }
     if ( f == NOT( g ) )
     {
-      return constant( true );
+      return {0, constant( true )};
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[f.child];
+    Node const& G = nodes[g.child];
     var_t x;
-    index_t f0, f1, g0, g1;
+    Edge f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
@@ -210,28 +226,29 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = XOR( f0, g0 );
-    index_t const r1 = XOR( f1, g1 );
+    Edge const r0 = XOR( f0, g0 );
+    Edge const r1 = XOR( f1, g1 );
     return unique( x, r1, r0 );
   }
 
   /* Compute f & g */
-  index_t AND( index_t f, index_t g )
+  Edge AND( Edge f, Edge g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    std::cout << f.child << std::endl;
+    assert( f.child < nodes.size() && "Make sure f exists." );
+    assert( g.child < nodes.size() && "Make sure g exists." );
     ++num_invoke_and;
 
     /* trivial cases */
-    if ( f == constant( false ) || g == constant( false ) )
+    if ( f.child == constant( false ) || g.child == constant( false ) )
     {
-      return constant( false );
+      return {0, constant( false )};
     }
-    if ( f == constant( true ) )
+    if ( f.child == constant( true ) )
     {
       return g;
     }
-    if ( g == constant( true ) )
+    if ( g.child == constant( true ) )
     {
       return f;
     }
@@ -240,10 +257,10 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[f.child];
+    Node const& G = nodes[g.child];
     var_t x;
-    index_t f0, f1, g0, g1;
+    Edge f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
@@ -267,28 +284,28 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = AND( f0, g0 );
-    index_t const r1 = AND( f1, g1 );
+    Edge const r0 = AND( f0, g0 );
+    Edge const r1 = AND( f1, g1 );
     return unique( x, r1, r0 );
   }
 
   /* Compute f | g */
-  index_t OR( index_t f, index_t g )
+  Edge OR( Edge f, Edge g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
+    assert( g.child < nodes.size() && "Make sure g exists." );
     ++num_invoke_or;
 
     /* trivial cases */
-    if ( f == constant( true ) || g == constant( true ) )
+    if ( f.child == constant( true ) || g.child == constant( true ) )
     {
-      return constant( true );
+      return {0, constant( true )};
     }
-    if ( f == constant( false ) )
+    if ( f.child == constant( false ) )
     {
       return g;
     }
-    if ( g == constant( false ) )
+    if ( g.child == constant( false ) )
     {
       return f;
     }
@@ -297,10 +314,10 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[f.child];
+    Node const& G = nodes[g.child];
     var_t x;
-    index_t f0, f1, g0, g1;
+    Edge f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
@@ -324,25 +341,25 @@ public:
       g1 = G.T;
     }
 
-    index_t const r0 = OR( f0, g0 );
-    index_t const r1 = OR( f1, g1 );
+    Edge const r0 = OR( f0, g0 );
+    Edge const r1 = OR( f1, g1 );
     return unique( x, r1, r0 );
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
-  index_t ITE( index_t f, index_t g, index_t h )
+  Edge ITE( Edge f, Edge g, Edge h )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
-    assert( h < nodes.size() && "Make sure h exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
+    assert( g.child < nodes.size() && "Make sure g exists." );
+    assert( h.child < nodes.size() && "Make sure h exists." );
     ++num_invoke_ite;
 
     /* trivial cases */
-    if ( f == constant( true ) )
+    if ( f.child == constant( true ) )
     {
       return g;
     }
-    if ( f == constant( false ) )
+    if ( f.child == constant( false ) )
     {
       return h;
     }
@@ -351,11 +368,11 @@ public:
       return g;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    Node const& H = nodes[h];
+    Node const& F = nodes[f.child];
+    Node const& G = nodes[g.child];
+    Node const& H = nodes[h.child];
     var_t x;
-    index_t f0, f1, g0, g1, h0, h1;
+    Edge f0, f1, g0, g1, h0, h1;
     if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
     {
       x = F.v;
@@ -407,8 +424,8 @@ public:
       }
     }
 
-    index_t const r0 = ITE( f0, g0, h0 );
-    index_t const r1 = ITE( f1, g1, h1 );
+    Edge const r0 = ITE( f0, g0, h0 );
+    Edge const r1 = ITE( f1, g1, h1 );
     return unique( x, r1, r0 );
   }
 
@@ -417,54 +434,54 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print( index_t f, std::ostream& os = std::cout ) const
+  void print( Edge f, std::ostream& os = std::cout ) const
   {
-    for ( auto i = 0u; i < nodes[f].v; ++i )
+    for ( auto i = 0u; i < nodes[f.child].v; ++i )
     {
       os << "  ";
     }
-    if ( f <= 1 )
+    if ( f.child <= 1 )
     {
-      os << "node " << f << ": constant " << f << std::endl;
+      os << "node " << f.child << ": constant " << f.child << std::endl;
     }
     else
     {
-      os << "node " << f << ": var = " << nodes[f].v << ", T = " << nodes[f].T 
-         << ", E = " << nodes[f].E << std::endl;
-      for ( auto i = 0u; i < nodes[f].v; ++i )
+      os << "node " << f.child << ": var = " << nodes[f.child].v << ", T = " << nodes[f.child].T.child << "inv : " << nodes[f.child].T.inv
+         << ", E = " << nodes[f.child].E.child << "inv : " << nodes[f.child].E.inv << std::endl;
+      for ( auto i = 0u; i < nodes[f.child].v; ++i )
       {
         os << "  ";
       }
       os << "> THEN branch" << std::endl;
-      print( nodes[f].T, os );
-      for ( auto i = 0u; i < nodes[f].v; ++i )
+      print( nodes[f.child].T, os );
+      for ( auto i = 0u; i < nodes[f.child].v; ++i )
       {
         os << "  ";
       }
       os << "> ELSE branch" << std::endl;
-      print( nodes[f].E, os );
+      print( nodes[f.child].E, os );
     }
   }
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt( index_t f ) const
+  Truth_Table get_tt( Edge f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
     assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
 
-    if ( f == constant( false ) )
+    if ( f.child == constant( false ) )
     {
       return Truth_Table( num_vars() );
     }
-    else if ( f == constant( true ) )
+    else if ( f.child == constant( true ) )
     {
       return ~Truth_Table( num_vars() );
     }
     
     /* Shannon expansion: f = x f_x + x' f_x' */
-    var_t const x = nodes[f].v;
-    index_t const fx = nodes[f].T;
-    index_t const fnx = nodes[f].E;
+    var_t const x = nodes[f.child].v;
+    Edge const fx = nodes[f.child].T;
+    Edge const fnx = nodes[f.child].E;
     Truth_Table const tt_x = create_tt_nth_var( num_vars(), x );
     Truth_Table const tt_nx = create_tt_nth_var( num_vars(), x, false );
     return ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) );
@@ -492,11 +509,11 @@ public:
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes( index_t f ) const
+  uint64_t num_nodes( Edge f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
 
-    if ( f == constant( false ) || f == constant( true ) )
+    if ( f.child == constant( false ) || f.child == constant( true ) )
     {
       return 0u;
     }
@@ -513,34 +530,34 @@ public:
     return num_invoke_not + num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
   }
 
-private:
+//private:
   /**********************************************************/
   /******************** Helper Functions ********************/
   /**********************************************************/
 
-  uint64_t num_nodes_rec( index_t f, std::vector<bool>& visited ) const
+  uint64_t num_nodes_rec( Edge f, std::vector<bool>& visited ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( f.child < nodes.size() && "Make sure f exists." );
     
 
     uint64_t n = 0u;
-    Node const& F = nodes[f];
-    assert( F.T < nodes.size() && "Make sure the children exist." );
-    assert( F.E < nodes.size() && "Make sure the children exist." );
-    if ( !visited[F.T] )
+    Node const& F = nodes[f.child];
+    assert( F.T.child < nodes.size() && "Make sure the children exist." );
+    assert( F.E.child < nodes.size() && "Make sure the children exist." );
+    if ( !visited[F.T.child] )
     {
       n += num_nodes_rec( F.T, visited );
-      visited[F.T] = true;
+      visited[F.T.child] = true;
     }
-    if ( !visited[F.E] )
+    if ( !visited[F.E.child] )
     {
       n += num_nodes_rec( F.E, visited );
-      visited[F.E] = true;
+      visited[F.E.child] = true;
     }
     return n + 1u;
   }
 
-private:
+//private:
   std::vector<Node> nodes;
   std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
