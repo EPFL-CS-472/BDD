@@ -179,12 +179,16 @@ inline bool operator==(Truth_Table const& tt1, Truth_Table const& tt2) {
   if (tt1.num_var != tt2.num_var) {
     return false;
   }
-  for (auto i = 0u; i < tt1.bits.size(); ++i) {
-    if (tt1.bits.at(i) != tt2.bits.at(i)) {
-      return false;
+  if (tt1.num_var < 6u) {
+    return (tt1.bits.at(0) & length_mask[tt1.num_var]) == (tt2.bits.at(0) & length_mask[tt2.num_var]);
+  } else {
+    for (auto i = 0u; i < tt1.bits.size(); ++i) {
+      if (tt1.bits.at(i) != tt2.bits.at(i)) {
+        return false;
+      }
     }
+    return true;
   }
-  return true;
 }
 
 inline bool operator!=(Truth_Table const& tt1, Truth_Table const& tt2) {

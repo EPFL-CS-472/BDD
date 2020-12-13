@@ -120,7 +120,12 @@ public:
       return T;
     }
 
-    bool output_neg = false; /* TODO */
+    /* If the Then branch is complemented, we complemente the Else branch and the output */
+    bool output_neg = is_complemented(T);
+    if (output_neg) {
+      E = NOT(E);
+      T = NOT(T);
+    }
 
     /* Look up in the unique table. */
     const auto it = unique_table[var].find({ T, E });
@@ -151,7 +156,15 @@ public:
   }
 
   void deref(signal_t f) {
-    /* TODO */
+    index_t index_f = get_index(f);
+    refs[index_f] -= 1;
+    if (is_dead(index_f) && index_f != 0) {
+      /* f is not a litteral and it is dead */
+      /* so we also deref its children */
+      Node const& F = get_node(f);
+      deref(F.T);
+      deref(F.E);
+    }
   }
 
   /**********************************************************/
@@ -167,23 +180,17 @@ public:
   signal_t XOR(signal_t f, signal_t g) {
     ++num_invoke_xor;
 
-    // assert(f < nodes.size() && "Make sure f exists.");
-    // assert(g < nodes.size() && "Make sure g exists.");
-
-    // /* check cache */
-    std::tuple<index_t, index_t> key;
-    if (f <= g) {
-      key = { f, g };
-    } else {
-      key = { g, f };
+    /* check cache */
+    const std::tuple<index_t, index_t> key = f <= g ?
+      std::tuple<signal_t, signal_t>({ f, g }) :
+      std::tuple<signal_t, signal_t>({ g, f });
+    const auto it = computed_table_XOR.find(key);
+    if (it != computed_table_XOR.end()) {
+      /* we found a node in the cache */
+      return it->second;
     }
-    // const auto it = xor_cache.find(key);
-    // if (it != xor_cache.end()) {
-    //   /* we found a node in the cache */
-    //   return it->second;
-    // }
 
-    // /* we did not found an answer in the cache */
+    /* we did not found an answer in the cache */
 
     Node const& F = get_node(f);
     Node const& G = get_node(g);
@@ -210,20 +217,20 @@ public:
 
     var_t x;
     signal_t f0, f1, g0, g1;
-    if (F.v < G.v) /* F is on top of G */
-    {
+    if (F.v < G.v) {
+      /* F is on top of G */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
-    } else if (G.v < F.v) /* G is on top of F */
-    {
+    } else if (G.v < F.v) {
+      /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
-    } else /* F and G are at the same level */
-    {
+    } else {
+      /* F and G are at the same level */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
@@ -231,8 +238,8 @@ public:
       g1 = G.T;
     }
 
-    signal_t const r0 = XOR(f0, g0);
-    signal_t const r1 = XOR(f1, g1);
+    signal_t const r0 = ref(XOR(f0, g0));
+    signal_t const r1 = ref(XOR(f1, g1));
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
     computed_table_XOR[key] = answer;
@@ -241,21 +248,19 @@ public:
 
   /* Compute f & g */
   signal_t AND(signal_t f, signal_t g) {
-    /* check cache */
-    std::pair<index_t, index_t> key;
-    if (f <= g) {
-      key = { f, g };
-    } else {
-      key = { g, f };
-    }
-    // const auto it = and_cache.find(key);
-    // if (it != and_cache.end()) {
-    //   /* we found a node in the cache */
-    //   return it->second;
-    // }
-
-    // /* we did not found an answer in the cache */
     ++num_invoke_and;
+
+    /* check cache */
+    const std::tuple<index_t, index_t> key = f <= g ?
+      std::tuple<signal_t, signal_t>({ f, g }) :
+      std::tuple<signal_t, signal_t>({ g, f });
+    const auto it = computed_table_AND.find(key);
+    if (it != computed_table_AND.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     Node const& F = get_node(f);
     Node const& G = get_node(g);
 
@@ -275,20 +280,20 @@ public:
 
     var_t x;
     signal_t f0, f1, g0, g1;
-    if (F.v < G.v) /* F is on top of G */
-    {
+    if (F.v < G.v) {
+      /* F is on top of G */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
-    } else if (G.v < F.v) /* G is on top of F */
-    {
+    } else if (G.v < F.v) {
+      /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
-    } else /* F and G are at the same level */
-    {
+    } else {
+      /* F and G are at the same level */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
@@ -296,8 +301,8 @@ public:
       g1 = G.T;
     }
 
-    signal_t const r0 = AND(f0, g0);
-    signal_t const r1 = AND(f1, g1);
+    signal_t const r0 = ref(AND(f0, g0));
+    signal_t const r1 = ref(AND(f1, g1));
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
     computed_table_AND[key] = answer;
@@ -306,21 +311,19 @@ public:
 
   /* Compute f | g */
   signal_t OR(signal_t f, signal_t g) {
-    /* check cache */
-    std::pair<index_t, index_t> key;
-    if (f <= g) {
-      key = { f, g };
-    } else {
-      key = { g, f };
-    }
-    // const auto it = or_cache.find(key);
-    // if (it != or_cache.end()) {
-    //   /* we found a node in the cache */
-    //   return it->second;
-    // }
-
-    // /* we did not found an answer in the cache */
     ++num_invoke_or;
+
+    /* check cache */
+    const std::tuple<index_t, index_t> key = f <= g ?
+      std::tuple<signal_t, signal_t>({ f, g }) :
+      std::tuple<signal_t, signal_t>({ g, f });
+    const auto it = computed_table_OR.find(key);
+    if (it != computed_table_OR.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     Node const& F = get_node(f);
     Node const& G = get_node(g);
 
@@ -340,20 +343,20 @@ public:
 
     var_t x;
     signal_t f0, f1, g0, g1;
-    if (F.v < G.v) /* F is on top of G */
-    {
+    if (F.v < G.v) {
+      /* F is on top of G */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
-    } else if (G.v < F.v) /* G is on top of F */
-    {
+    } else if (G.v < F.v) {
+      /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
-    } else /* F and G are at the same level */
-    {
+    } else {
+      /* F and G are at the same level */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
@@ -361,8 +364,8 @@ public:
       g1 = G.T;
     }
 
-    signal_t const r0 = OR(f0, g0);
-    signal_t const r1 = OR(f1, g1);
+    signal_t const r0 = ref(OR(f0, g0));
+    signal_t const r1 = ref(OR(f1, g1));
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
     computed_table_OR[key] = answer;
@@ -371,16 +374,17 @@ public:
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
   signal_t ITE(signal_t f, signal_t g, signal_t h) {
-    // /* check cache */
-    const std::tuple<index_t, index_t, index_t> key({ f, g, h });
-    // const auto it = ite_cache.find(key);
-    // if (it != ite_cache.end()) {
-    //   /* we found a node in the cache */
-    //   return it->second;
-    // }
-
-    // /* we did not found an answer in the cache */
     ++num_invoke_ite;
+
+    /* check cache */
+    const std::tuple<index_t, index_t, index_t> key({ f, g, h });
+    const auto it = computed_table_ITE.find(key);
+    if (it != computed_table_ITE.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+
+    /* we did not found an answer in the cache */
     Node const& F = get_node(f);
     Node const& G = get_node(g);
     Node const& H = get_node(h);
@@ -398,8 +402,8 @@ public:
 
     var_t x;
     signal_t f0, f1, g0, g1, h0, h1;
-    if (F.v <= G.v && F.v <= H.v) /* F is not lower than both G and H */
-    {
+    if (F.v <= G.v && F.v <= H.v) {
+      /* F is not lower than both G and H */
       x = F.v;
       f0 = F.E;
       f1 = F.T;
@@ -415,8 +419,8 @@ public:
       } else {
         h0 = h1 = h;
       }
-    } else /* F.v > min(G.v, H.v) */
-    {
+    } else {
+      /* F.v > min(G.v, H.v) */
       f0 = f1 = f;
       if (G.v < H.v) {
         x = G.v;
@@ -428,8 +432,8 @@ public:
         g0 = g1 = g;
         h0 = H.E;
         h1 = H.T;
-      } else /* G.v == H.v */
-      {
+      } else {
+        /* G.v == H.v */
         x = G.v;
         g0 = G.E;
         g1 = G.T;
@@ -438,8 +442,8 @@ public:
       }
     }
 
-    signal_t const r0 = ITE(f0, g0, h0);
-    signal_t const r1 = ITE(f1, g1, h1);
+    signal_t const r0 = ref(ITE(f0, g0, h0));
+    signal_t const r1 = ref(ITE(f1, g1, h1));
     const auto answer = unique(x, r1, r0);
     /* we update the cache with the new value */
     computed_table_ITE[key] = answer;
