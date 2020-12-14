@@ -103,7 +103,7 @@ int main()
 */
   {
     cout << "test 01: computed table" << endl;
-    BDD bdd( 2 );
+    BDD bdd( 3 );
     auto const x0 = bdd.literal( 0 );
     auto const x1 = bdd.literal( 1 );
     auto const f = bdd.XOR( bdd.AND( x0, x1 ), bdd.AND( x0, x1 ) );
