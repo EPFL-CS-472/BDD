@@ -172,8 +172,11 @@ public:
       return ret;
   }
 
-  void cce_conversion()
+  void cce_conversion(Edge f)
   {
+      std::cout << "---- Before CCE conversion --- " << std::endl;
+      print(f);
+
       // 1. mark all "Else" edges (no need)
       // 2. Remove 1 Leafs (maybe not yet)
       // 3. Invert all edges leading to 0
@@ -189,20 +192,28 @@ public:
       }
       // 4. Remove inversion from all "Then" edges by inverting all other edges from/to the Node
       bool edge_modified = true;
+       print(f);
       while(edge_modified){
           edge_modified = false;
+          std::cout << "---- New iteration --- " << std::endl;
           for(auto i = 0u; i < nodes.size(); ++i){
               if(nodes.at(i).T.inv){
                  nodes.at(i).T.inv = false;
+                 std::cout << "modified node " << i << std::endl;
                  edge_modified |= invert_edges_of_node(i);
+                 print(f);
+
               }
           }
       }
       for(auto i = 0u; i < nodes.size(); ++i){
           if(checkChildren(nodes.at(i))){
-            nodes.at(i).E = nodes.at(i).T;
+            nodes.at(i).E.child = nodes.at(i).T.child;
           }
       }
+      std::cout << "---- After CCE conversion --- " << std::endl;
+      print(f);
+
   }
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
@@ -582,7 +593,7 @@ public:
     }
     if ( f.child <= 1 )
     {
-      os << "node " << f.child << ": constant " << f.child << std::endl;
+      os << "node " << f.child << ": constant " << f.child << "  inv : " << f.inv << std::endl;
     }
     else
     {
