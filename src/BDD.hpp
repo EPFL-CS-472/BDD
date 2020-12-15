@@ -120,7 +120,7 @@ public:
       return T;
     }
 
-    /* If the Then branch is complemented, we complemente the Else branch and the output */
+    /* If the Then branch is complemented, we complement the Else branch and the output */
     bool output_neg = is_complemented(T);
     if (output_neg) {
       E = NOT(E);
@@ -135,7 +135,7 @@ public:
     } else {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
-      nodes.emplace_back(Node({ var, T, E }));
+      nodes.emplace_back(Node({ var, ref(T), ref(E) }));
       refs.emplace_back(0);
       unique_table[var][{T, E}] = new_index;
       return make_signal(new_index, output_neg);
@@ -181,7 +181,7 @@ public:
     ++num_invoke_xor;
 
     /* check cache */
-    const std::tuple<index_t, index_t> key = f <= g ?
+    const std::tuple<signal_t, signal_t> key = f <= g ?
       std::tuple<signal_t, signal_t>({ f, g }) :
       std::tuple<signal_t, signal_t>({ g, f });
     const auto it = computed_table_XOR.find(key);
@@ -223,12 +223,22 @@ public:
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
+      /* if f is complemented we need to complement its output */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
     } else if (G.v < F.v) {
       /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
+      /* if g is complemented we need to complement its output */
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     } else {
       /* F and G are at the same level */
       x = F.v;
@@ -236,11 +246,21 @@ public:
       f1 = F.T;
       g0 = G.E;
       g1 = G.T;
+      /* If the inputs of f and g are complemented then we want to complement the output before the recursive call */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     }
 
     signal_t const r0 = ref(XOR(f0, g0));
     signal_t const r1 = ref(XOR(f1, g1));
     const auto answer = unique(x, r1, r0);
+    deref(r0); deref(r1);
     /* we update the cache with the new value */
     computed_table_XOR[key] = answer;
     return answer;
@@ -251,7 +271,7 @@ public:
     ++num_invoke_and;
 
     /* check cache */
-    const std::tuple<index_t, index_t> key = f <= g ?
+    const std::tuple<signal_t, signal_t> key = f <= g ?
       std::tuple<signal_t, signal_t>({ f, g }) :
       std::tuple<signal_t, signal_t>({ g, f });
     const auto it = computed_table_AND.find(key);
@@ -286,12 +306,22 @@ public:
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
+      /* if f is complemented we need to complement its output */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
     } else if (G.v < F.v) {
       /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
+      /* if g is complemented we need to complement its output */
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     } else {
       /* F and G are at the same level */
       x = F.v;
@@ -299,11 +329,21 @@ public:
       f1 = F.T;
       g0 = G.E;
       g1 = G.T;
+      /* If the inputs of f and g are complemented then we want to complement the output before the recursive call */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     }
 
     signal_t const r0 = ref(AND(f0, g0));
     signal_t const r1 = ref(AND(f1, g1));
     const auto answer = unique(x, r1, r0);
+    deref(r0); deref(r1);
     /* we update the cache with the new value */
     computed_table_AND[key] = answer;
     return answer;
@@ -314,7 +354,7 @@ public:
     ++num_invoke_or;
 
     /* check cache */
-    const std::tuple<index_t, index_t> key = f <= g ?
+    const std::tuple<signal_t, signal_t> key = f <= g ?
       std::tuple<signal_t, signal_t>({ f, g }) :
       std::tuple<signal_t, signal_t>({ g, f });
     const auto it = computed_table_OR.find(key);
@@ -349,12 +389,22 @@ public:
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
+      /* if f is complemented we need to complement its output */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
     } else if (G.v < F.v) {
       /* G is on top of F */
       x = G.v;
       f0 = f1 = f;
       g0 = G.E;
       g1 = G.T;
+      /* if g is complemented we need to complement its output */
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     } else {
       /* F and G are at the same level */
       x = F.v;
@@ -362,11 +412,21 @@ public:
       f1 = F.T;
       g0 = G.E;
       g1 = G.T;
+      /* If the inputs of f and g are complemented then we want to complement the output before the recursive call */
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
+      if (is_complemented(g)) {
+        g0 = NOT(g0);
+        g1 = NOT(g1);
+      }
     }
 
     signal_t const r0 = ref(OR(f0, g0));
     signal_t const r1 = ref(OR(f1, g1));
     const auto answer = unique(x, r1, r0);
+    deref(r0); deref(r1);
     /* we update the cache with the new value */
     computed_table_OR[key] = answer;
     return answer;
@@ -377,7 +437,7 @@ public:
     ++num_invoke_ite;
 
     /* check cache */
-    const std::tuple<index_t, index_t, index_t> key({ f, g, h });
+    const std::tuple<signal_t, signal_t, signal_t> key({ f, g, h });
     const auto it = computed_table_ITE.find(key);
     if (it != computed_table_ITE.end()) {
       /* we found a node in the cache */
@@ -407,15 +467,27 @@ public:
       x = F.v;
       f0 = F.E;
       f1 = F.T;
+      if (is_complemented(f)) {
+        f0 = NOT(f0);
+        f1 = NOT(f1);
+      }
       if (G.v == F.v) {
         g0 = G.E;
         g1 = G.T;
+        if (is_complemented(g)) {
+          g0 = NOT(g0);
+          g1 = NOT(g1);
+        }
       } else {
         g0 = g1 = g;
       }
       if (H.v == F.v) {
         h0 = H.E;
         h1 = H.T;
+        if (is_complemented(h)) {
+          h0 = NOT(h0);
+          h1 = NOT(h1);
+        }
       } else {
         h0 = h1 = h;
       }
@@ -427,11 +499,19 @@ public:
         g0 = G.E;
         g1 = G.T;
         h0 = h1 = h;
+        if (is_complemented(g)) {
+          g0 = NOT(g0);
+          g1 = NOT(g1);
+        }
       } else if (H.v < G.v) {
         x = H.v;
         g0 = g1 = g;
         h0 = H.E;
         h1 = H.T;
+        if (is_complemented(h)) {
+          h0 = NOT(h0);
+          h1 = NOT(h1);
+        }
       } else {
         /* G.v == H.v */
         x = G.v;
@@ -439,12 +519,21 @@ public:
         g1 = G.T;
         h0 = H.E;
         h1 = H.T;
+        if (is_complemented(g)) {
+          g0 = NOT(g0);
+          g1 = NOT(g1);
+        }
+        if (is_complemented(h)) {
+          h0 = NOT(h0);
+          h1 = NOT(h1);
+        }
       }
     }
 
     signal_t const r0 = ref(ITE(f0, g0, h0));
     signal_t const r1 = ref(ITE(f1, g1, h1));
     const auto answer = unique(x, r1, r0);
+    deref(r0); deref(r1);
     /* we update the cache with the new value */
     computed_table_ITE[key] = answer;
     return answer;

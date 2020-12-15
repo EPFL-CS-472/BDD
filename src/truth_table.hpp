@@ -48,7 +48,7 @@ uint8_t power_two(const uint32_t n) {
 std::vector<uint64_t> mask_pos(const uint8_t num_var, const uint8_t var) {
   std::vector<uint64_t> bits(num_var > 6u ? (uint64_t(1) << (num_var - 6u)) : 1u);
   for (auto i = 0u; i < bits.size(); ++i) {
-    if (var < 6u) {
+    if (var <= 6u) {
       bits[i] = var_mask_pos[var];
     } else {
       if (((i >> (var - 6u)) & 1) == 0) {
@@ -64,7 +64,7 @@ std::vector<uint64_t> mask_pos(const uint8_t num_var, const uint8_t var) {
 std::vector<uint64_t> mask_neg(const uint8_t num_var, const uint8_t var) {
   std::vector<uint64_t> bits(num_var > 6u ? (uint64_t(1) << (num_var - 6u)) : 1u);
   for (auto i = 0u; i < bits.size(); ++i) {
-    if (var < 6u) {
+    if (var <= 6u) {
       bits[i] = var_mask_neg[var];
     } else {
       if (((i >> (var - 6u)) & 1) == 0) {
@@ -179,7 +179,7 @@ inline bool operator==(Truth_Table const& tt1, Truth_Table const& tt2) {
   if (tt1.num_var != tt2.num_var) {
     return false;
   }
-  if (tt1.num_var < 6u) {
+  if (tt1.num_var <= 6u) {
     return (tt1.bits.at(0) & length_mask[tt1.num_var]) == (tt2.bits.at(0) & length_mask[tt2.num_var]);
   } else {
     for (auto i = 0u; i < tt1.bits.size(); ++i) {
@@ -204,7 +204,7 @@ inline Truth_Table Truth_Table::positive_cofactor(uint8_t const var) const {
   }
   std::vector<uint64_t> new_bits(bits.size());
   for (auto i = 0u; i < new_bits.size(); ++i) {
-    if (var < 6u) {
+    if (var <= 6u) {
       new_bits.at(i) = masked_bits.at(i) | (masked_bits.at(i) >> (1 << var));
     } else {
       new_bits.at(i) = masked_bits.at(i);
@@ -225,7 +225,7 @@ inline Truth_Table Truth_Table::negative_cofactor(uint8_t const var) const {
   }
   std::vector<uint64_t> new_bits(bits.size());
   for (auto i = 0u; i < new_bits.size(); ++i) {
-    if (var < 6u) {
+    if (var <= 6u) {
       new_bits.at(i) = masked_bits.at(i) | (masked_bits.at(i) << (1 << var));
     } else {
       new_bits.at(i) = masked_bits.at(i);
