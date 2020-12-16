@@ -153,7 +153,9 @@ public:
       {
           /* necessary nodes */
           if ((i == f) || (i == 2) || (nodes[i].v == num_vars()))
+          {
               keep_index.push_back(i);
+          }
 
           const auto it = std::find(keep_index.begin(), keep_index.end(), i);
           if (it != keep_index.end())
@@ -811,7 +813,7 @@ public:
     }
   }
 
-  Truth_Table get_tt( index_t f, bool self_call = false ) //const
+  Truth_Table get_tt( index_t f, uint8_t self_call = 0u ) //const
   {
     if (!self_call)
         nodes = nodes_copy;
@@ -821,6 +823,7 @@ public:
 
     if (!self_call)
     {
+        first_call++;
         if ((f != 0) && (f != 1))
         {
             rearrange_bdd(f);
@@ -846,13 +849,11 @@ public:
     if ( f == constant( false ) )
     {
       /* constant false (node 0) actually represents constant true (due to complemented bdd) */
-      first_call = false;
       return !nodes[f].f_comp ? ~Truth_Table( num_vars() ) : Truth_Table( num_vars() );
     }
     else if ( f == constant( true ) )
     {
       /* should never be called */
-      first_call = false;
       return Truth_Table( num_vars() );
     }
     
@@ -867,11 +868,9 @@ public:
     /* if edge f -> xi is complemented */
     if (nodes[f].f_comp)
     {
-        first_call = false;
         return operator~((tt_x & get_tt(fx, true)) | (!e_comp ? (tt_nx & get_tt(fnx, true)) : (tt_nx & operator~(get_tt(fnx, true)))));
     }
 
-    first_call = false;
     return (tt_x & get_tt(fx, true)) | (!e_comp ? (tt_nx & get_tt(fnx, true)) : (tt_nx & operator~(get_tt(fnx, true))));
   }
 
@@ -885,21 +884,31 @@ public:
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() //const
   {
-    /* assign the real nodes */
-    //nodes = nodes_copy;
-    /*index_t f = nodes.size() - 1;
-    if ((f != 0) && (f != 1))
-    {
-        rearrange_bdd(f);
-        f = nodes.size() - 1;
-    }
-    /*std::cout << "BDD REARRANGED\n";
-    for (int i = 0; i < nodes.size(); ++i)
-    {
-        std::cout << "i: " << i << " ";
-        print_one(nodes[i]);
-    }*/
-    //complement_bdd(f);
+    /* assign the real nodes if multiple calls to get_tt() */
+      if (first_call > 1)
+      {
+          nodes = nodes_copy;
+          index_t f = nodes.size() - 1;
+          if ((f != 0) && (f != 1))
+          {
+              rearrange_bdd_for_count(f);
+              f = nodes.size() - 1;
+          }
+          /*std::cout << "BDD AVANT COMP\n";
+          for (int i = 0; i < nodes.size(); ++i)
+          {
+              std::cout << "i: " << i << " ";
+              print_one(nodes[i]);
+          }
+          complement_bdd(f);
+          
+          std::cout << "BDD NUM\n";
+          for (int i = 0; i < nodes.size(); ++i)
+          {
+              std::cout << "i: " << i << " ";
+              print_one(nodes[i]);
+          }*/
+      }
 
     uint64_t n = 0u;
     for ( auto i = 2u; i < nodes.size(); ++i )
@@ -1212,6 +1221,50 @@ private:
       return false;
   }
 
+  /* Rearrange BDD to make it cleaner for count. */
+  void rearrange_bdd_for_count(index_t f)
+  {
+      std::vector<Node> nodes_temp;
+      std::vector<Node> nodes_unchanged;
+      std::vector<index_t> keep_index;
+
+      nodes_unchanged = nodes;
+
+      /* find used nodes */
+      for (auto i = 0u; i <= f; ++i)
+      {
+          if ((i == f) || (i == 2) || (nodes[i].v == num_vars()))
+          {
+              keep_index.push_back(i);
+              keep_index.push_back(nodes[i].T);
+              keep_index.push_back(nodes[i].E);
+          }
+          else
+          {
+              keep_index.push_back(nodes[i].T);
+              keep_index.push_back(nodes[i].E);
+          }
+      }
+      sort(keep_index.begin(), keep_index.end());
+
+      /* new nodes vector */
+      for (auto i = 0u; i < nodes.size(); ++i)
+      {
+          const auto it = std::find(keep_index.begin(), keep_index.end(), i);
+          if (it != keep_index.end())
+          {
+              nodes_temp.push_back(nodes[i]);
+          }
+      }
+
+      /* sort nodes by variable */
+      sort(nodes_temp.begin() + 3, nodes_temp.end(),
+          [](const Node& n, const Node& m)
+          { return (n.v > m.v); });
+      nodes = nodes_temp;
+      shift_indices(nodes_unchanged);
+  }
+
   /* Print one node. */
   void print_one(const Node& s) {
       std::cout << "var: " << s.v << "  T: " << s.T
@@ -1234,6 +1287,8 @@ private:
   std::vector<std::tuple<index_t, index_t, index_t, std::string>> hash_table;
   std::vector<index_t> hash_result;
 
-  /* first call of truth table */
-  bool first_call = true;
+  /* number of first calls of truth table */
+  uint8_t first_call = 0u;
+  /* truth_table called multiple times */
+  bool multiple_call = false;
 };
