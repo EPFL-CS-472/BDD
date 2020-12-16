@@ -4,66 +4,53 @@
 #include <cassert>
 #include <string>
 
-/* masks used to filter out unused bits */
-static const uint64_t length_mask[] = {
-  0x0000000000000001,
-  0x0000000000000003,
-  0x000000000000000f,
-  0x00000000000000ff,
-  0x000000000000ffff,
-  0x00000000ffffffff,
-  0xffffffffffffffff};
-
-/* masks used to get the bits where a certain variable is 1 */
-static const uint64_t var_mask_pos[] = {
-  0xaaaaaaaaaaaaaaaa,
-  0xcccccccccccccccc,
-  0xf0f0f0f0f0f0f0f0,
-  0xff00ff00ff00ff00,
-  0xffff0000ffff0000,
-  0xffffffff00000000};
-
-/* masks used to get the bits where a certain variable is 0 */
-static const uint64_t var_mask_neg[] = {
-  0x5555555555555555,
-  0x3333333333333333,
-  0x0f0f0f0f0f0f0f0f,
-  0x00ff00ff00ff00ff,
-  0x0000ffff0000ffff,
-  0x00000000ffffffff};
+#include <vector>
 
 /* return i if n == 2^i and i <= 6, 0 otherwise */
-inline uint8_t power_two( const uint32_t n )
+inline uint8_t power_two(uint32_t n)
 {
-  switch( n )
-  {
-    case 2u: return 1u;
-    case 4u: return 2u;
-    case 8u: return 3u;
-    case 16u: return 4u;
-    case 32u: return 5u;
-    case 64u: return 6u;
-    default: return 0u;
+  uint32_t res = 0;
+  while(n != 0){
+    auto last = n & 0x1;
+    n >>= 1;
+    if(last == 0 && n != 0) 
+      res += 1;
+    else if(last == 1 && n != 0){
+      assert(false && "This should not work anymore!");
+      return 0; // not exactly.
+    }
   }
+  return res;
 }
+
 
 class Truth_Table
 {
 public:
   Truth_Table( uint8_t num_var )
-   : num_var( num_var ), bits( 0u )
+   : num_var( num_var ), bits(1 << num_var, false)
   {
-    assert( num_var <= 6u );
+    //assert( num_var <= 6u );
   }
 
   Truth_Table( uint8_t num_var, uint64_t bits )
-   : num_var( num_var ), bits( bits & length_mask[num_var] )
+   : num_var( num_var ), bits(1 << num_var, false)
   {
-    assert( num_var <= 6u );
+    //assert( num_var <= 6u );
+    for (auto i = 0u; i < this->bits.size(); ++i) {
+      this->bits[i] = ((bits & 0x1) != 0);
+      bits >>= 1;
+    }
+  }
+
+  Truth_Table(uint8_t num_var, std::vector<bool> &&b)
+    : num_var(num_var), bits(b)
+  {
+
   }
 
   Truth_Table( const std::string str )
-   : num_var( power_two( str.size() ) ), bits( 0u )
+   : num_var( power_two( str.size() ) ), bits(1 << num_var, false)
   {
     if ( num_var == 0u )
     {
@@ -86,14 +73,13 @@ public:
   bool get_bit( uint8_t const position ) const
   {
     assert( position < ( 1 << num_var ) );
-    return ( ( bits >> position ) & 0x1 );
+    return bits[position];
   }
 
   void set_bit( uint8_t const position )
   {
     assert( position < ( 1 << num_var ) );
-    bits |= ( uint64_t( 1 ) << position );
-    bits &= length_mask[num_var];
+    bits[position] = true;
   }
 
   uint8_t n_var() const
@@ -109,8 +95,9 @@ public:
 
 public:
   uint8_t const num_var; /* number of variables involved in the function */
-  uint64_t bits; /* the truth table */
+  std::vector<bool> bits; /* the truth table */
 };
+
 
 /* overload std::ostream operator for convenient printing */
 inline std::ostream& operator<<( std::ostream& os, Truth_Table const& tt )
@@ -125,28 +112,48 @@ inline std::ostream& operator<<( std::ostream& os, Truth_Table const& tt )
 /* bit-wise NOT operation */
 inline Truth_Table operator~( Truth_Table const& tt )
 {
-  return Truth_Table( tt.num_var, ~tt.bits );
+  std::vector<bool> cpy = tt.bits;
+  cpy.flip();
+  return Truth_Table( tt.num_var, std::move(cpy) );
 }
 
 /* bit-wise OR operation */
 inline Truth_Table operator|( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits | tt2.bits );
+
+  std::vector<bool> res = std::vector<bool>(1 << tt1.num_var, false);
+  for(auto i = 0u; i < tt1.bits.size(); ++i){
+    res[i] = (tt1.bits[i] || tt2.bits[i]);
+  }
+
+  return Truth_Table( tt1.num_var, std::move(res));
 }
 
 /* bit-wise AND operation */
 inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits & tt2.bits );
+
+  std::vector<bool> res = std::vector<bool>(1 << tt1.num_var, false);
+  for(auto i = 0u; i < tt1.bits.size(); ++i){
+    res[i] = (tt1.bits[i] && tt2.bits[i]);
+  }
+
+  return Truth_Table( tt1.num_var, std::move(res));
 }
 
 /* bit-wise XOR operation */
 inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits ^ tt2.bits );
+
+  std::vector<bool> res = std::vector<bool>(1 << tt1.num_var, false);
+  for(auto i = 0u; i < tt1.bits.size(); ++i){
+    res[i] = (tt1.bits[i] != tt2.bits[i]);
+  }
+
+  return Truth_Table( tt1.num_var, std::move(res));
 }
 
 /* check if two truth_tables are the same */
@@ -167,36 +174,80 @@ inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
 inline Truth_Table Truth_Table::positive_cofactor( uint8_t const var ) const
 {
   assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_pos[var] ) | ( ( bits & var_mask_pos[var] ) >> ( 1 << var ) ) );
+
+  Truth_Table result{num_var};
+  for(uint8_t i = 0; i < (1 << num_var); i += (2 << var)){
+    // collect (1 << var) bits from zero and duplicate another.
+    for(uint8_t j = (1 << var); j < (2 << var); ++j){
+      if(this->get_bit(i + j)){
+        result.set_bit(i + j);
+        result.set_bit(i + j - (1 << var));
+      }
+    }
+  }
+
+  return result;
 }
 
 inline Truth_Table Truth_Table::negative_cofactor( uint8_t const var ) const
 {
   assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_neg[var] ) | ( ( bits & var_mask_neg[var] ) << ( 1 << var ) ) );
+
+  Truth_Table result{num_var};
+  for(uint8_t i = 0; i < (1 << num_var); i += (2 << var)){
+    // collect (1 << var) bits from zero and skip another.
+    for(uint8_t j = 0; j < (1 << var); ++j){
+      if(this->get_bit(i + j)){
+        result.set_bit(i + j);
+        result.set_bit(i + j + (1 << var));
+      }
+    }
+  }
+
+  return result;
 }
 
 inline Truth_Table Truth_Table::derivative( uint8_t const var ) const
 {
   assert( var < num_var );
-  return positive_cofactor( var ) ^ negative_cofactor( var );
+
+  auto pos = this->positive_cofactor(var);
+  auto neg = this->negative_cofactor(var);
+
+  return pos ^ neg;
 }
 
 inline Truth_Table Truth_Table::consensus( uint8_t const var ) const
 {
   assert( var < num_var );
-  return positive_cofactor( var ) & negative_cofactor( var );
+  
+  auto pos = this->positive_cofactor(var);
+  auto neg = this->negative_cofactor(var);
+
+  return pos & neg;
 }
 
 inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
 {
   assert( var < num_var );
-  return positive_cofactor( var ) | negative_cofactor( var );
+  
+  auto pos = this->positive_cofactor(var);
+  auto neg = this->negative_cofactor(var);
+
+  return pos | neg;
 }
 
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
-  assert ( num_var <= 6u && var < num_var );
-  return Truth_Table( num_var, polarity ? var_mask_pos[var] : var_mask_neg[var] );
+  assert (var < num_var);
+  auto res = Truth_Table(num_var);
+  uint32_t pattern_size = (1u << var);
+  for(auto i = 0u; i < (1u << num_var); i += 2 * pattern_size){
+    for(auto j = 0u; j < pattern_size; ++j)
+      res.bits[i + j] = !polarity;
+    for(auto j = 0u; j < pattern_size; ++j)
+      res.bits[i + pattern_size + j] = polarity;
+  }
+  return res;
 }
