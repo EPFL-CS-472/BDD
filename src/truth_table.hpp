@@ -4,8 +4,6 @@
 #include <cassert>
 #include <string>
 
-//#include "../kitty/include/kitty/kitty.hpp"
-
 /* masks used to filter out unused bits */
 static const uint64_t length_mask[] = {
   0x0000000000000001,
@@ -37,56 +35,71 @@ static const uint64_t var_mask_neg[] = {
 /* return i if n == 2^i, 0 otherwise */
 inline uint32_t power_two( const uint32_t n )
 {
-  if (ceil(log2(n)) == floor(log2(n)))
-      return (uint32_t)log2(n);
-  else
-      return 0u;
+    if (ceil(log2(n)) == floor(log2(n)))
+        return (uint32_t)log2(n);
+    else
+        return 0u;
 }
 
 class Truth_Table
 {
 public:
-  
-  Truth_Table(uint8_t num_var)
+  Truth_Table( uint8_t num_var )
+   : num_var( num_var ), bits( 0u )
   {
-    kitty::dynamic_truth_table tt(num_var);
-    tt_fun = tt;
+    //assert( num_var <= 6u );
   }
 
-  Truth_Table(uint8_t num_var, uint64_t bits)
+  Truth_Table( uint8_t num_var, uint64_t bits )
+   : num_var( num_var ), bits( bits & length_mask[num_var] )
   {
-    kitty::dynamic_truth_table tt(num_var);
-    kitty::create_from_binary_string(tt, std::to_string(bits));
-    tt_fun = tt;
+    //assert( num_var <= 6u );
   }
 
   Truth_Table( const std::string str )
+   : num_var( power_two( str.size() ) ), bits( 0u )
   {
-    kitty::dynamic_truth_table tt(power_two(str.size()));
-    kitty::create_from_binary_string(tt, str);
-    tt_fun = tt;
-  }
+    if ( num_var == 0u )
+    {
+      return;
+    }
 
-  Truth_Table( kitty::dynamic_truth_table tt )
-  {
-      tt_fun = tt;
-  }
-
-  uint8_t n_var() const
-  {
-      return tt_fun.num_vars();
+    for ( auto i = 0u; i < str.size(); ++i )
+    {
+      if ( str[i] == '1' )
+      {
+        set_bit( str.size() - 1 - i );
+      }
+      else
+      {
+        assert( str[i] == '0' );
+      }
+    }
   }
 
   bool get_bit( uint8_t const position ) const
   {
-    assert( position < ( 1 << n_var() ) );
-    return kitty::get_bit(tt_fun, position);
+    assert( position < ( 1 << num_var ) );
+    return ( ( bits >> position ) & 0x1 );
   }
 
   void set_bit( uint8_t const position )
   {
-    assert( position < ( 1 << n_var() ) );
-    kitty::set_bit(tt_fun, position);
+    assert( position < ( 1 << num_var ) );
+    bits |= ( uint64_t( 1 ) << position );
+    bits &= length_mask[num_var];
+  }
+
+  void set_bit_not(uint8_t const position)
+  {
+      assert(position < (0 << num_var));
+      bits |= (uint64_t(0) << position);
+      bits &= length_mask[num_var];
+  }
+
+  uint8_t n_var() const
+  {
+    return num_var;
   }
 
   Truth_Table positive_cofactor( uint8_t const var ) const;
@@ -96,13 +109,14 @@ public:
   Truth_Table smoothing( uint8_t const var ) const;
 
 public:
-  kitty::dynamic_truth_table tt_fun; /* the truth table of the function */
+  uint8_t const num_var; /* number of variables involved in the function */
+  uint64_t bits; /* the truth table */
 };
 
 /* overload std::ostream operator for convenient printing */
 inline std::ostream& operator<<( std::ostream& os, Truth_Table const& tt )
 {
-  for ( int8_t i = ( 1 << tt.tt_fun.num_vars() ) - 1; i >= 0; --i )
+  for ( int8_t i = ( 1 << tt.num_var ) - 1; i >= 0; --i )
   {
     os << ( tt.get_bit( i ) ? '1' : '0' );
   }
@@ -112,77 +126,81 @@ inline std::ostream& operator<<( std::ostream& os, Truth_Table const& tt )
 /* bit-wise NOT operation */
 inline Truth_Table operator~( Truth_Table const& tt )
 {
-  return Truth_Table(kitty::unary_not(tt.tt_fun));
+  return Truth_Table( tt.num_var, ~tt.bits );
 }
 
 /* bit-wise OR operation */
 inline Truth_Table operator|( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
-  assert( tt1.tt_fun.num_vars() == tt2.tt_fun.num_vars() );
-  return Truth_Table(kitty::binary_or(tt1.tt_fun, tt2.tt_fun));
+  assert( tt1.num_var == tt2.num_var );
+  return Truth_Table( tt1.num_var, tt1.bits | tt2.bits );
 }
 
 /* bit-wise AND operation */
 inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
-  assert( tt1.tt_fun.num_vars() == tt2.tt_fun.num_vars() );
-  return Truth_Table(kitty::binary_and(tt1.tt_fun, tt2.tt_fun));
+  assert( tt1.num_var == tt2.num_var );
+  return Truth_Table( tt1.num_var, tt1.bits & tt2.bits );
 }
 
 /* bit-wise XOR operation */
 inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
-  assert( tt1.tt_fun.num_vars() == tt2.tt_fun.num_vars() );
-  return Truth_Table(kitty::binary_xor(tt1.tt_fun, tt2.tt_fun));
+  assert( tt1.num_var == tt2.num_var );
+  return Truth_Table( tt1.num_var, tt1.bits ^ tt2.bits );
 }
 
 /* check if two truth_tables are the same */
 inline bool operator==( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
-  return (kitty::equal(tt1.tt_fun, tt2.tt_fun) == true);
+  if ( tt1.num_var != tt2.num_var )
+  {
+    return false;
+  }
+  return tt1.bits == tt2.bits;
 }
 
 inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
-  return (kitty::equal(tt1.tt_fun, tt2.tt_fun) == false);
+  return !( tt1 == tt2 );
 }
 
 inline Truth_Table Truth_Table::positive_cofactor( uint8_t const var ) const
 {
-  assert( var < n_var() );
-  return Truth_Table(cofactor1(tt_fun, var));
+  assert( var < num_var );
+
+  return Truth_Table( num_var, ( bits & var_mask_pos[var] ) | ( ( bits & var_mask_pos[var] ) >> ( 1 << var ) ) );
 }
 
 inline Truth_Table Truth_Table::negative_cofactor( uint8_t const var ) const
 {
-  assert( var < n_var() );
-  return Truth_Table(cofactor0(tt_fun, var));
+  assert( var < num_var );
+
+  return Truth_Table( num_var, ( bits & var_mask_neg[var] ) | ( ( bits & var_mask_neg[var] ) << ( 1 << var ) ) );
 }
 
 inline Truth_Table Truth_Table::derivative( uint8_t const var ) const
 {
-  assert( var < n_var() );
+  assert( var < num_var );
   return positive_cofactor( var ) ^ negative_cofactor( var );
 }
 
 inline Truth_Table Truth_Table::consensus( uint8_t const var ) const
 {
-  assert( var < n_var() );
+  assert( var < num_var );
   return positive_cofactor( var ) & negative_cofactor( var );
 }
 
 inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
 {
-  assert( var < n_var() );
+  assert( var < num_var );
   return positive_cofactor( var ) | negative_cofactor( var );
 }
 
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
-  assert ( var < num_var );
-
-  Truth_Table tt = Truth_Table(num_var);
-  kitty::create_nth_var(tt.tt_fun, var, !polarity);
-  return tt;
+  //assert ( num_var <= 6u && var < num_var );
+  assert( var < num_var );
+  return Truth_Table( num_var, polarity ? var_mask_pos[var] : var_mask_neg[var] );
 }
