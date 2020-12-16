@@ -4,7 +4,7 @@
 #include <cassert>
 #include <string>
 
-#include "../../kitty/include/kitty/kitty.hpp"
+#include "../kitty/include/kitty/kitty.hpp"
 
 /* masks used to filter out unused bits */
 static const uint64_t length_mask[] = {
