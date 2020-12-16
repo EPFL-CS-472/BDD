@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cassert>
 #include <string>
+#include <math.h>
 
 /* masks used to filter out unused bits */
 static const uint64_t length_mask[] = {
