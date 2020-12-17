@@ -25,6 +25,9 @@
 \section{Introduction}
 \todo{Write introduction}
 
+\section{Complemented edge}
+\todo{Write complemented edge}
+
 \section{Operation cache}
 To avoid computing the same operation multiple time, we can use a cache that stores the result of each computations.
 
@@ -39,9 +42,6 @@ std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t> ite_cache;
 So each time an operation is used, it firstly checks if its parameters are in the corresponding cache. If it is, the answer from the cache is directly returned. If it is not the "normal" computation begins. Then if it is not a trivial case\footnote{The trivial cases are not checked before the cache because they count in the invocation number.} result is firstly stored in the cache before been returned.
 
 For commutative operations -- XOR, OR and AND -- the order of the parameters does not matter and so only one order is stored in the cache. I chose to use the parameters in increasing order with respect to their index in the node table. 
-
-\section{Complemented edge}
-\todo{Write complemented edge}
 
 \section{Node reference count tracing}
 \todo{Write node reference count tracing}
