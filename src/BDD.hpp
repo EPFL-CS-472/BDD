@@ -620,15 +620,15 @@ public:
     bool Else_is_complemented = nodes[get_index(f)].E & 0x1;
     
     var_t const x = nodes[get_index(f)].v;
-   // std::cout << "enter1_get_tt" << std::endl;
+    // std::cout << "enter1_get_tt" << std::endl;
     signal_t const fx = nodes[get_index(f)].T;
-     // std::cout << "enter2_get_tt" << std::endl;
+    // std::cout << "enter2_get_tt" << std::endl;
     signal_t const fnx = nodes[get_index(f)].E;
     // std::cout << "enter3_get_tt" << std::endl;
     Truth_Table const tt_x = create_tt_nth_var( num_vars(), x );
-      //std::cout << "enter4_get_tt" << std::endl;
+    //std::cout << "enter4_get_tt" << std::endl;
     Truth_Table const tt_nx = create_tt_nth_var( num_vars(), x, false );
-  // std::cout << "enter5_get_tt" << std::endl;
+    // std::cout << "enter5_get_tt" << std::endl;
   
     if (not node_is_complemented and not Else_is_complemented)
 		return ( tt_x & get_tt( fx & (~0x1) ) ) | ( ~ tt_x & get_tt( fnx & (~0x1) ) );

@@ -64,19 +64,18 @@ std::vector<uint64_t> generate_msk_pos (uint32_t var,uint32_t num_var){
 	std::vector<uint64_t> mask_var ;
 	uint64_t fix = 0x0000000000000000 ;
 	//std::cout << "entered generate_msk_pos " << std::endl;
-//	std::cout << "num_var " << num_var  <<std::endl; 
 	int nb_block ;
 	if (num_var <7 ) {
 		nb_block=1;
 	}
-		else{
+	else{
 		nb_block= 1 << (num_var-6); //power_two(num_var-6);
 	} 
  //   std::cout << "nb_block " <<  nb_block <<std::endl;
 	int pos ; //pos= var-6;
 	if (var <6 ) {
 		pos=var;
-		}
+	}
 	else{
 		pos= var-6;
 	} 
@@ -108,10 +107,7 @@ std::vector<uint64_t> generate_msk_pos (uint32_t var,uint32_t num_var){
 			 
 		}
 	} 
-	
-	for (int m=0 ; m<nb_block;m++){
-	//	std::cout << "mask_var " << mask_var.at(m)   <<std::endl; 
-	}	
+		
 //	std::cout << "sortie generate_msk_pos " << std::endl;
 	return mask_var;
 }
@@ -151,8 +147,7 @@ std::vector<uint64_t> generate_msk_neg (uint32_t var,uint32_t num_var){
 			//std::cout << "entered boucle " << var <<" i " << i <<std::endl;
 			mask_var.emplace_back(var_mask_neg[var]); 
 			//std::cout << "mask " <<   var_mask_neg[var] <<std::endl;
-			
-			//std::cout << "mask_var " << mask_var.at(i)   <<std::endl;  
+
 		}
 	}
 	else{
