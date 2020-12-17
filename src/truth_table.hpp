@@ -35,9 +35,6 @@ static const uint64_t var_mask_neg[] = {
   0x00000000ffffffff};
 
 
-
-
-
 std::vector<uint64_t> length_masks (uint32_t num_var){
 	std::vector<uint64_t> mask ;
 	int blocks ;
