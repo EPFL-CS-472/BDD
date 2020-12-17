@@ -30,6 +30,37 @@ struct hash<pair<uint32_t, uint32_t>>
     return seed;
   }
 };
+/*-------------------------------------------------------------------------------ADDED HASH---------------------------------------------------------------------------------------------------------------*/
+template<>
+struct hash<tuple<uint32_t, uint32_t>>
+{
+  using argument_type = tuple<uint32_t, uint32_t>;
+  using result_type = size_t;
+  result_type operator() ( argument_type const& in ) const
+  {
+    result_type seed = 0;
+    hash_combine( seed, std::get<0>( in ) );
+    hash_combine( seed, std::get<1>( in ) );
+    return seed;
+  }
+};
+
+template<>
+struct hash<tuple<uint32_t, uint32_t, uint32_t>>
+{
+  using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
+  using result_type = size_t;
+  result_type operator() ( argument_type const& in ) const
+  {
+    result_type seed = 0;
+    hash_combine( seed, std::get<0>( in ) );
+    hash_combine( seed, std::get<1>( in ) );
+    hash_combine( seed, std::get<2>( in ) );
+    return seed;
+  }
+};
+
+/*----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------*/
 }
 
 class BDD
@@ -39,6 +70,8 @@ public:
   /* Declaring `index_t` as an alias for an unsigned integer.
    * This is just for easier understanding of the code.
    * This datatype will be used for node indices. */
+   
+  using signal_t = uint32_t;
 
   using var_t = uint32_t;
   /* Similarly, declare `var_t` also as an alias for an unsigned integer.
@@ -48,17 +81,40 @@ private:
   struct Node
   {
     var_t v; /* corresponding variable */
-    index_t T; /* index of THEN child */
-    index_t E; /* index of ELSE child */
+    signal_t T; /* index of THEN child */
+    signal_t E; /* index of ELSE child */
+    uint32_t ref_count ; /*reference count*/            /*added ref_count to the structure  */
   };
+  
+  inline signal_t make_signal( index_t index, bool complement = false ) const
+  {
+    return complement ? ( index << 1 ) + 1 : index << 1;
+  }
+
+  inline index_t get_index( signal_t signal ) const
+  {
+    assert( ( signal >> 1 ) < nodes.size() );
+    return signal >> 1;
+  }
+
+  inline Node get_node( signal_t signal ) const
+  {
+    return nodes[get_index( signal )];
+  }
+
+  inline bool is_complemented( signal_t signal ) const
+  {
+    return signal & 0x1;
+  }
+ 
 
 public:
   explicit BDD( uint32_t num_vars )
-    : unique_table( num_vars ), num_invoke_not( 0u ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
+    : unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
       num_invoke_xor( 0u ), num_invoke_ite( 0u )
   {
-    nodes.emplace_back( Node({num_vars, 0, 0}) ); /* constant 0 */
-    nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
+    nodes.emplace_back( Node({num_vars, 0, 0, 0}) ); /* constant 1 */ //the only node needed for Complemented BDD       
+                                  
     /* `nodes` is initialized with two `Node`s representing the terminal (constant) nodes.
      * Their `v` is `num_vars` and their indices are 0 and 1.
      * (Note that the real variables range from 0 to `num_vars - 1`.)
@@ -77,25 +133,36 @@ public:
   }
 
   /* Get the (index of) constant node. */
-  index_t constant( bool value ) const
+  signal_t constant( bool value ) const
   {
-    return value ? 1 : 0;
+    return !value ? 1 : 0; // TRUE : return 1 complemented , FALSE  returns 0 non complemented
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  index_t unique( var_t var, index_t T, index_t E )
+  signal_t unique( var_t var, signal_t T, signal_t E )
   {
     assert( var < num_vars() && "Variables range from 0 to `num_vars - 1`." );
-    assert( T < nodes.size() && "Make sure the children exist." );
-    assert( E < nodes.size() && "Make sure the children exist." );
-    assert( nodes[T].v > var && "With static variable order, children can only be below the node." );
-    assert( nodes[E].v > var && "With static variable order, children can only be below the node." );
+    assert( (get_index(T)) < nodes.size() && "Make sure the children exist." );
+    assert( (get_index(E)) < nodes.size() && "Make sure the children exist." );
+    assert( nodes[get_index(T)].v > var && "With static variable order, children can only be below the node." );
+    assert( nodes[get_index(E)].v > var && "With static variable order, children can only be below the node." );
+	
+	bool node_is_complemented = false;
+	
+	if (is_complemented( T ) != 0){   /* verify if the THEN edge is complemeted , we complement the ELSE */
+		node_is_complemented = true;
+		
+	
+		E=E ^ 0x1;
+		T=T ^ 0x1;
+	}
+	
 
     /* Reduction rule: Identical children */
     if ( T == E )
     {
-      return T;
+      return T | node_is_complemented ;
     }
 
     /* Look up in the unique table. */
@@ -103,60 +170,90 @@ public:
     if ( it != unique_table[var].end() )
     {
       /* The required node already exists. Return it. */
-      return it->second;
+      return (it->second | node_is_complemented) ;
     }
     else
     {
       /* Create a new node and insert it to the unique table. */
-      index_t const new_index = nodes.size();
-      nodes.emplace_back( Node({var, T, E}) );
-      unique_table[var][{T, E}] = new_index;
-      return new_index;
+      signal_t const new_index = nodes.size();
+      //std::cout << "nodes.size() : "  <<  nodes.size() << std::endl;
+      //nodes.emplace_back( Node({var, T, E,0}) ); 
+      nodes.emplace_back( Node({var, T, E,0}) );                                                                                
+      
+      
+      
+      
+      unique_table[var][{T, E}] = new_index << 1;      /* new_index << 1 is the shift in order to add a non complemented signal to the unique table */
+      //std::cout << "returned index : "  <<  (node_is_complemented ? (new_index << 1) + 1 : (new_index << 1)) << std::endl;
+      return node_is_complemented ? (new_index << 1) + 1 : (new_index << 1) ;
     }
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  index_t literal( var_t var, bool complement = false )
+  signal_t literal( var_t var, bool complement = false )
   {
     return unique( var, constant( !complement ), constant( complement ) );
   }
+
+
+/**********************************************************/
+  /*********************** Ref & Deref **********************/
+  /**********************************************************/
+  signal_t ref( signal_t f )                  /*for ref and deref, we go through the nodes using index which corresponds to one right shift of the signal_t*/                                                                                 
+  {
+    nodes[get_index(f)].ref_count ++;
+    if (get_index(f) != 0){
+		ref (nodes[get_index(f)].E);
+		ref (nodes[get_index(f)].T);
+	}
+    
+    return f;
+  }
+
+  void deref( signal_t f )    /*recursive function in order to deref all the children when derefferecing the node*/                                                                                                  
+  {
+	if (nodes[get_index(f)].ref_count != 0) {
+    nodes[get_index(f)].ref_count = nodes[f>>1].ref_count - 1 ;
+    }
+    if (get_index(f) != 0){
+		deref (nodes[get_index(f)].E);
+		deref (nodes[get_index(f)].T);
+	}
+		
+  }
+
 
   /**********************************************************/
   /********************* BDD Operations *********************/
   /**********************************************************/
 
   /* Compute ~f */
-  index_t NOT( index_t f )
+  signal_t NOT( signal_t f )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    ++num_invoke_not;
-
-    /* trivial cases */
-    if ( f == constant( false ) )
-    {
-      return constant( true );
-    }
-    if ( f == constant( true ) )
-    {
-      return constant( false );
-    }
-
-    Node const& F = nodes[f];
-    var_t x = F.v;
-    index_t f0 = F.E, f1 = F.T;
-
-    index_t const r0 = NOT( f0 );
-    index_t const r1 = NOT( f1 );
-    return unique( x, r1, r0 );
+	 assert( ( get_index(f) < nodes.size()) && "Make sure f exists." );
+	return f ^ 0x1;
   }
 
   /* Compute f ^ g */
-  index_t XOR( index_t f, index_t g )
+  signal_t XOR( signal_t f, signal_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+    assert( get_index(f) < nodes.size() && "Make sure f exists." );
+    assert( get_index(g) < nodes.size() && "Make sure g exists." );
     ++num_invoke_xor;
-
+	
+	
+	bool f_is_complemented = is_complemented(f);
+	bool g_is_complemented = is_complemented(g);
+	const auto it = computed_table_XOR.find( std::make_tuple(f ,g ));
+    if ( it != computed_table_XOR.end() ){
+	    return it-> second ;
+	}
+	
+	const auto it1 = computed_table_XOR.find( std::make_tuple(g ,f ));
+    if ( it1 != computed_table_XOR.end() ){
+	    return it1-> second ;
+	}
+	
     /* trivial cases */
     if ( f == g )
     {
@@ -183,45 +280,63 @@ public:
       return constant( true );
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[get_index(f)];
+    Node const& G = nodes[get_index(g)];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T & (~0x1) : F.T;
       g0 = g1 = g;
     }
     else if ( G.v < F.v ) /* G is on top of F */
     {
       x = G.v;
       f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T & (~0x1) : G.T;
     }
     else /* F and G are at the same level */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T & (~0x1) : F.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T & (~0x1) : G.T;
     }
-
-    index_t const r0 = XOR( f0, g0 );
-    index_t const r1 = XOR( f1, g1 );
-    return unique( x, r1, r0 );
+	
+    signal_t const r0 = XOR( f0, g0 );
+    signal_t const r1 = XOR( f1, g1 );
+    signal_t RESULTAT=unique( x, r1, r0 );
+    computed_table_XOR.emplace(std::make_tuple(f,g) , RESULTAT );
+    return RESULTAT;
   }
 
   /* Compute f & g */
-  index_t AND( index_t f, index_t g )
+  signal_t AND( signal_t f, signal_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
+	  
+    assert( get_index(f) < nodes.size() && "Make sure f exists." );
+    assert( get_index(g) < nodes.size() && "Make sure g exists." );
     ++num_invoke_and;
-
+   
+	
+	bool f_is_complemented = is_complemented(f);
+	bool g_is_complemented = is_complemented(g);
+	
+	
+	const auto it = computed_table_AND.find( std::make_tuple(f ,g ));
+    if ( it != computed_table_AND.end() ){
+	    return it-> second ;
+	}
+	
+	const auto it1 = computed_table_AND.find( std::make_tuple(g ,f ));
+    if ( it1 != computed_table_AND.end() ){
+	    return it1-> second ;
+	}
+	
     /* trivial cases */
     if ( f == constant( false ) || g == constant( false ) )
     {
@@ -240,44 +355,62 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[get_index(f)];
+    Node const& G = nodes[get_index(g)];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T ^ 0x1 : F.T;
       g0 = g1 = g;
     }
     else if ( G.v < F.v ) /* G is on top of F */
     {
       x = G.v;
       f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
     }
     else /* F and G are at the same level */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T ^ 0x1 : F.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
     }
-
-    index_t const r0 = AND( f0, g0 );
-    index_t const r1 = AND( f1, g1 );
-    return unique( x, r1, r0 );
+	//std::cout << "f0 = " << f0 << " g0 = " << g0 << " f1 = " << f1 << " g1 = " << g1 << std::endl;
+    signal_t const r0 = AND( f0, g0 );
+    signal_t const r1 = AND( f1, g1 );
+    signal_t RESULTAT=unique( x, r1, r0 );
+    computed_table_AND.emplace(std::make_tuple(f,g) , RESULTAT );
+    return RESULTAT;
   }
-
+  
   /* Compute f | g */
-  index_t OR( index_t f, index_t g )
+  signal_t OR( signal_t f, signal_t g )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
-    ++num_invoke_or;
+	++num_invoke_or;
+    assert( get_index(f) < nodes.size() && "Make sure f exists." );
+    assert( get_index(g) < nodes.size() && "Make sure g exists." );
+    
+    
+	
+	bool f_is_complemented = is_complemented(f);
+	bool g_is_complemented = is_complemented(g);
+	
+		
+	const auto it = computed_table_OR.find( std::make_tuple(f ,g ));
+    if ( it != computed_table_OR.end() ){
+	    return it-> second ;
+	}
+	
+	const auto it1 = computed_table_OR.find( std::make_tuple(g ,f ));
+    if ( it1 != computed_table_OR.end() ){
+	    return it1-> second ;
+	}
 
     /* trivial cases */
     if ( f == constant( true ) || g == constant( true ) )
@@ -297,45 +430,63 @@ public:
       return f;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
+    Node const& F = nodes[get_index(f)];
+    Node const& G = nodes[get_index(g)];
     var_t x;
-    index_t f0, f1, g0, g1;
+    signal_t f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T ^ 0x1 : F.T;
       g0 = g1 = g;
     }
     else if ( G.v < F.v ) /* G is on top of F */
     {
       x = G.v;
       f0 = f1 = f;
-      g0 = G.E;
-      g1 = G.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
     }
     else /* F and G are at the same level */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
-      g0 = G.E;
-      g1 = G.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T ^ 0x1 : F.T;
+      g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+      g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
     }
 
-    index_t const r0 = OR( f0, g0 );
-    index_t const r1 = OR( f1, g1 );
-    return unique( x, r1, r0 );
+    signal_t const r0 = OR( f0, g0 );
+    signal_t const r1 = OR( f1, g1 );
+    signal_t RESULTAT=unique( x, r1, r0 );
+    computed_table_OR.emplace(std::make_tuple(f,g) , RESULTAT );
+    return RESULTAT;
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
-  index_t ITE( index_t f, index_t g, index_t h )
+  signal_t ITE( signal_t f, signal_t g, signal_t h )
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( g < nodes.size() && "Make sure g exists." );
-    assert( h < nodes.size() && "Make sure h exists." );
-    ++num_invoke_ite;
+	++num_invoke_ite;
+    assert( get_index(f) < nodes.size() && "Make sure f exists." );
+    assert( get_index(g) < nodes.size() && "Make sure g exists." );
+    assert( get_index(h) < nodes.size() && "Make sure h exists." );
+    
+    
+	
+	bool f_is_complemented = is_complemented(f);
+	bool g_is_complemented = is_complemented(g);
+	bool h_is_complemented = is_complemented(h);
+		
+	const auto it = computed_table_ITE.find( std::make_tuple(f ,g ,h ));
+    if ( it != computed_table_ITE.end() ){
+	    return it-> second ;
+	}
+	
+	const auto it1 = computed_table_ITE.find( std::make_tuple(f ^ 0x1,h ,g ));
+    if ( it1 != computed_table_ITE.end() ){
+	    return it1-> second ;
+	}
 
     /* trivial cases */
     if ( f == constant( true ) )
@@ -351,20 +502,20 @@ public:
       return g;
     }
 
-    Node const& F = nodes[f];
-    Node const& G = nodes[g];
-    Node const& H = nodes[h];
+    Node const& F = nodes[get_index(f)];
+    Node const& G = nodes[get_index(g)];
+    Node const& H = nodes[get_index(h)];
     var_t x;
-    index_t f0, f1, g0, g1, h0, h1;
+    signal_t f0, f1, g0, g1, h0, h1;
     if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
     {
       x = F.v;
-      f0 = F.E;
-      f1 = F.T;
+      f0 = f_is_complemented ? F.E ^ 0x1 : F.E;
+      f1 = f_is_complemented ? F.T ^ 0x1 : F.T;
       if ( G.v == F.v )
       {
-        g0 = G.E;
-        g1 = G.T;
+        g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+        g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
       }
       else
       {
@@ -372,8 +523,8 @@ public:
       }
       if ( H.v == F.v )
       {
-        h0 = H.E;
-        h1 = H.T;
+        h0 = h_is_complemented ? H.E ^ 0x1 : H.E;
+        h1 = h_is_complemented ? H.T ^ 0x1 : H.T;
       }
       else
       {
@@ -386,30 +537,32 @@ public:
       if ( G.v < H.v )
       {
         x = G.v;
-        g0 = G.E;
-        g1 = G.T;
+        g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+        g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
         h0 = h1 = h;
       }
       else if ( H.v < G.v )
       {
         x = H.v;
         g0 = g1 = g;
-        h0 = H.E;
-        h1 = H.T;
+        h0 = h_is_complemented ? H.E ^ 0x1 : H.E;
+        h1 = h_is_complemented ? H.T ^ 0x1 : H.T;
       }
       else /* G.v == H.v */
       {
         x = G.v;
-        g0 = G.E;
-        g1 = G.T;
-        h0 = H.E;
-        h1 = H.T;
+        g0 = g_is_complemented ? G.E ^ 0x1 : G.E;
+        g1 = g_is_complemented ? G.T ^ 0x1 : G.T;
+        h0 = h_is_complemented ? H.E ^ 0x1 : H.E;
+        h1 = h_is_complemented ? H.T ^ 0x1 : H.T;
       }
     }
 
-    index_t const r0 = ITE( f0, g0, h0 );
-    index_t const r1 = ITE( f1, g1, h1 );
-    return unique( x, r1, r0 );
+    signal_t const r0 = ITE( f0, g0, h0 );
+    signal_t const r1 = ITE( f1, g1, h1 );
+    signal_t RESULTAT=unique( x, r1, r0 );
+    computed_table_ITE.emplace(std::make_tuple(f,g,h) , RESULTAT );
+    return RESULTAT;
   }
 
   /**********************************************************/
@@ -417,7 +570,7 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print( index_t f, std::ostream& os = std::cout ) const
+  void print( signal_t f, std::ostream& os = std::cout ) const 
   {
     for ( auto i = 0u; i < nodes[f].v; ++i )
     {
@@ -445,12 +598,13 @@ public:
       print( nodes[f].E, os );
     }
   }
+  
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt( index_t f ) const
+  Truth_Table get_tt( signal_t f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
-    assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
+    assert( (f>>1) < nodes.size() && "Make sure f exists." );
+    //assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
 
     if ( f == constant( false ) )
     {
@@ -462,39 +616,67 @@ public:
     }
     
     /* Shannon expansion: f = x f_x + x' f_x' */
-    var_t const x = nodes[f].v;
-    index_t const fx = nodes[f].T;
-    index_t const fnx = nodes[f].E;
+    bool node_is_complemented = f & 0x1;
+    bool Else_is_complemented = nodes[get_index(f)].E & 0x1;
+    
+    var_t const x = nodes[get_index(f)].v;
+   // std::cout << "enter1_get_tt" << std::endl;
+    signal_t const fx = nodes[get_index(f)].T;
+     // std::cout << "enter2_get_tt" << std::endl;
+    signal_t const fnx = nodes[get_index(f)].E;
+    // std::cout << "enter3_get_tt" << std::endl;
     Truth_Table const tt_x = create_tt_nth_var( num_vars(), x );
+      //std::cout << "enter4_get_tt" << std::endl;
     Truth_Table const tt_nx = create_tt_nth_var( num_vars(), x, false );
-    return ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) );
+  // std::cout << "enter5_get_tt" << std::endl;
+  
+    if (not node_is_complemented and not Else_is_complemented)
+		return ( tt_x & get_tt( fx & (~0x1) ) ) | ( ~ tt_x & get_tt( fnx & (~0x1) ) );
+		
+	if (not node_is_complemented and  Else_is_complemented)
+		return ( tt_x & get_tt( fx & (~0x1) ) ) | ( ~ tt_x & ~get_tt( fnx & (~0x1) ) );
+		
+	if (node_is_complemented and  Else_is_complemented)
+		return ~(( tt_x & get_tt( fx & (~0x1) ) ) | ( ~ tt_x & ~get_tt( fnx & (~0x1) ) ));
+		
+	if ( node_is_complemented and not Else_is_complemented)
+		return ~(( tt_x & get_tt( fx & (~0x1) ) ) | ( ~ tt_x & get_tt( fnx & (~0x1) ) ));
+		return 0 ;
+		
   }
 
   /* Whether `f` is dead (having a reference count of 0). */
-  bool is_dead( index_t f ) const
+  bool is_dead( index_t f ) const                                                                                               
   {
-    /* TODO */
-    return false;
+    if (nodes[f].ref_count == 0 ) {
+		return true;
+	}
+	return false;
+	
   }
 
   /* Get the number of living nodes in the whole package, excluding constants. */
   uint64_t num_nodes() const
   {
     uint64_t n = 0u;
-    for ( auto i = 2u; i < nodes.size(); ++i )
+    for ( auto i = 1u; i < nodes.size(); ++i )                                                                              
     {
+		
+	
       if ( !is_dead( i ) )
       {
+	
         ++n;
       }
     }
+    
     return n;
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes( index_t f ) const
+  uint64_t num_nodes( signal_t f ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( ( f >> 1 ) < nodes.size() && "Make sure f exists." );
 
     if ( f == constant( false ) || f == constant( true ) )
     {
@@ -503,14 +685,15 @@ public:
 
     std::vector<bool> visited( nodes.size(), false );
     visited[0] = true;
-    visited[1] = true;
+  
+
 
     return num_nodes_rec( f, visited );
   }
 
   uint64_t num_invoke() const
   {
-    return num_invoke_not + num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
+    return  num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
   }
 
 private:
@@ -518,35 +701,46 @@ private:
   /******************** Helper Functions ********************/
   /**********************************************************/
 
-  uint64_t num_nodes_rec( index_t f, std::vector<bool>& visited ) const
+  uint64_t num_nodes_rec( signal_t f, std::vector<bool>& visited ) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert( (f>>1) < nodes.size() && "Make sure f exists." );
     
 
     uint64_t n = 0u;
-    Node const& F = nodes[f];
-    assert( F.T < nodes.size() && "Make sure the children exist." );
-    assert( F.E < nodes.size() && "Make sure the children exist." );
-    if ( !visited[F.T] )
+    Node const& F = nodes[f>>1];
+    assert( ( (get_index(F.T)) >> 1 ) < nodes.size() && "Make sure the children exist." );
+    assert( ( (get_index(F.E)) >> 1 ) < nodes.size() && "Make sure the children exist." );
+    if ( !visited[get_index(F.T)] )
     {
+		
       n += num_nodes_rec( F.T, visited );
-      visited[F.T] = true;
+      visited[get_index(F.T)] = true;
     }
-    if ( !visited[F.E] )
+    if ( !visited[get_index(F.E)] )
     {
+		
       n += num_nodes_rec( F.E, visited );
-      visited[F.E] = true;
+      visited[get_index(F.E)] = true;
     }
+    
+    
     return n + 1u;
   }
 
 private:
   std::vector<Node> nodes;
-  std::vector<std::unordered_map<std::pair<index_t, index_t>, index_t>> unique_table;
+  std::vector<std::unordered_map<std::pair<signal_t, signal_t>, signal_t>> unique_table;
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
 
   /* statistics */
-  uint64_t num_invoke_not, num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
+  uint64_t num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
+  
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_AND;
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_OR;
+  std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_XOR;
+  std::unordered_map<std::tuple<signal_t, signal_t, signal_t>, signal_t> computed_table_ITE;
+  
+
 };
