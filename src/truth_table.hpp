@@ -32,7 +32,7 @@ static const uint64_t var_mask_neg[] = {
   0x0000ffff0000ffff,
   0x00000000ffffffff };
 
-/* return i if n == 2^i and i <= 10, 0 otherwise */
+/* return i if n == 2^i and i <= 32, 0 otherwise */
 inline uint8_t power_two(const uint32_t n) {
 	switch (n) {
 		case 2u: return 1u;
