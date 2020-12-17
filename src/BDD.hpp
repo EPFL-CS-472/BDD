@@ -42,30 +42,32 @@ public:
 	 * This datatype will be used for representing variables. */
 
 private:
-	typedef struct Comp_edge_t {
+	struct comp_edge_t {
+		comp_edge_t(index_t i) : i(i), comp(false) {};
+		comp_edge_t(index_t i, bool comp) : i(i), comp(comp) {};
 		index_t i;//Index of edge's child
 		bool comp = false; //Is complemented
 
-		bool operator==(Comp_edge_t& edge) {
+		bool operator==(comp_edge_t& const edge) {
 			return this->i == edge.i && this->comp == edge.comp;
 		}
-	}comp_edge_t;
+	};
 
-	typedef struct node
+	struct Node
 	{
 		var_t v; /* corresponding variable */
 		comp_edge_t T; /* index of THEN child */
 		comp_edge_t E; /* index of ELSE child */
 		uint32_t ref_count = 0; //Reference count of node
-	}Node;
+	};
 
-	typedef struct nodeCache {
+	struct NodeCache {
 		std::string op;
 		index_t result;
 		index_t node1;
 		index_t node2 = UINT32_MAX;
 		index_t node3 = UINT32_MAX;
-	}NodeCache;
+	};
 
 public:
 	explicit BDD(uint32_t num_vars)
@@ -115,12 +117,13 @@ public:
 			return it->second;
 		}
 		else {
+
 			/* Create a new node and insert it to the unique table. */
 			index_t const new_index = nodes.size();
 			nodes.emplace_back(Node({ var, T, E }));
 			unique_table[var][{T.i, E.i}] = new_index;
-			ref(T.i); //nodes[T.i].ref_count++;
-			ref(E.i); //nodes[E.i].ref_count++;
+			ref(T.i);
+			ref(E.i);
 			return new_index;
 		}
 	}
@@ -180,9 +183,9 @@ public:
 
 	/* Compute f ^ g */
 	index_t XOR(index_t f, index_t g) {
+		++num_invoke_xor;
 		assert(f < nodes.size() && "Make sure f exists.");
 		assert(g < nodes.size() && "Make sure g exists.");
-		++num_invoke_xor;
 		index_t cacheNode = nodeInCache("XOR", f, g);
 		if (cacheNode != UINT32_MAX) {
 			return cacheNode;
@@ -248,9 +251,9 @@ public:
 
 	/* Compute f & g */
 	index_t AND(index_t f, index_t g) {
+		++num_invoke_and;
 		assert(f < nodes.size() && "Make sure f exists.");
 		assert(g < nodes.size() && "Make sure g exists.");
-		++num_invoke_and;
 		index_t cacheNode = nodeInCache("AND", f, g);
 		if (cacheNode != UINT32_MAX) {
 			return cacheNode;
@@ -306,9 +309,9 @@ public:
 
 	/* Compute f | g */
 	index_t OR(index_t f, index_t g) {
+		++num_invoke_or;
 		assert(f < nodes.size() && "Make sure f exists.");
 		assert(g < nodes.size() && "Make sure g exists.");
-		++num_invoke_or;
 		index_t cacheNode = nodeInCache("OR", f, g);
 		if (cacheNode != UINT32_MAX) {
 			return cacheNode;
@@ -364,10 +367,10 @@ public:
 
 	/* Compute ITE(f, g, h), i.e., f ? g : h */
 	index_t ITE(index_t f, index_t g, index_t h) {
+		++num_invoke_ite;
 		assert(f < nodes.size() && "Make sure f exists.");
 		assert(g < nodes.size() && "Make sure g exists.");
 		assert(h < nodes.size() && "Make sure h exists.");
-		++num_invoke_ite;
 		index_t cacheNode = nodeInCache("ITE", f, g, h);
 		if (cacheNode != UINT32_MAX) {
 			return cacheNode;
