@@ -1,7 +1,7 @@
 #pragma once
 
 #include "truth_table.hpp"
-
+//test
 #include <iostream>
 #include <vector>
 #include <unordered_map>
