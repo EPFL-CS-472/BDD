@@ -42,30 +42,30 @@ public:
 	 * This datatype will be used for representing variables. */
 
 private:
-	struct comp_edge_t {
+	typedef struct Comp_edge_t {
 		index_t i;//Index of edge's child
 		bool comp = false; //Is complemented
 
-		bool operator==(comp_edge_t& edge) {
+		bool operator==(Comp_edge_t& edge) {
 			return this->i == edge.i && this->comp == edge.comp;
 		}
-	};
+	}comp_edge_t;
 
-	struct Node
+	typedef struct node
 	{
 		var_t v; /* corresponding variable */
 		comp_edge_t T; /* index of THEN child */
 		comp_edge_t E; /* index of ELSE child */
 		uint32_t ref_count = 0; //Reference count of node
-	};
+	}Node;
 
-	struct NodeCache {
+	typedef struct nodeCache {
 		std::string op;
 		index_t result;
 		index_t node1;
 		index_t node2 = UINT32_MAX;
 		index_t node3 = UINT32_MAX;
-	};
+	}NodeCache;
 
 public:
 	explicit BDD(uint32_t num_vars)
