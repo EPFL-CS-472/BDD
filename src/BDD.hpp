@@ -48,13 +48,14 @@ private:
 		index_t i;//Index of edge's child
 		bool comp = false; //Is complemented
 
-		bool operator==(comp_edge_t& const edge) {
+		bool operator==(comp_edge_t& edge) {
 			return this->i == edge.i && this->comp == edge.comp;
 		}
 	};
 
 	struct Node
 	{
+		Node(var_t v, comp_edge_t T, comp_edge_t E) : v(v), T(T), E(E) {};
 		var_t v; /* corresponding variable */
 		comp_edge_t T; /* index of THEN child */
 		comp_edge_t E; /* index of ELSE child */
@@ -62,6 +63,9 @@ private:
 	};
 
 	struct NodeCache {
+		NodeCache(std::string op, index_t result, index_t node1) : op(op), result(result), node1(node1) {};
+		NodeCache(std::string op, index_t result, index_t node1, index_t node2) : op(op), result(result), node1(node1), node2(node2) {};
+		NodeCache(std::string op, index_t result, index_t node1, index_t node2, index_t node3) : op(op), result(result), node1(node1), node2(node2), node3(node3) {};
 		std::string op;
 		index_t result;
 		index_t node1;
