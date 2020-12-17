@@ -180,10 +180,25 @@ public:
   signal_t XOR(signal_t f, signal_t g) {
     ++num_invoke_xor;
 
+    /* we use the commutativity and the property f ^ g == (~f) ^ (~g) 
+       to have a single key for multiple equivalent computation in the
+       cache :
+        - the index of f should be small than the index of g
+        - f should not be complemented
+     */
+    if (get_index(f) >= get_index(g)) {
+      const signal_t temp = f;
+      f = g;
+      g = temp;
+    }
+    if (is_complemented(f)) {
+      /* use f ^ g == (~f) ^ (~g) */
+      f = NOT(f);
+      g = NOT(g);
+    }
+
     /* check cache */
-    const std::tuple<signal_t, signal_t> key = f <= g ?
-      std::tuple<signal_t, signal_t>({ f, g }) :
-      std::tuple<signal_t, signal_t>({ g, f });
+    const std::tuple<signal_t, signal_t> key = { f, g };
     const auto it = computed_table_XOR.find(key);
     if (it != computed_table_XOR.end()) {
       /* we found a node in the cache */
@@ -223,11 +238,8 @@ public:
       f0 = F.E;
       f1 = F.T;
       g0 = g1 = g;
-      /* if f is complemented we need to complement its output */
-      if (is_complemented(f)) {
-        f0 = NOT(f0);
-        f1 = NOT(f1);
-      }
+      /* by the transformation from the begining of the function
+         we know that f is not complemented */
     } else if (G.v < F.v) {
       /* G is on top of F */
       x = G.v;
@@ -246,11 +258,9 @@ public:
       f1 = F.T;
       g0 = G.E;
       g1 = G.T;
-      /* If the inputs of f and g are complemented then we want to complement the output before the recursive call */
-      if (is_complemented(f)) {
-        f0 = NOT(f0);
-        f1 = NOT(f1);
-      }
+      /* by the transformation from the begining of the function
+         we know that f is not complemented */
+      /* If the inputs of g are complemented then we want to complement the output before the recursive call */
       if (is_complemented(g)) {
         g0 = NOT(g0);
         g1 = NOT(g1);
@@ -270,12 +280,25 @@ public:
   signal_t AND(signal_t f, signal_t g) {
     ++num_invoke_and;
 
+    /* for simplicity in the cache we want the index of f to be 
+       smaller that the index of g */
+    if (get_index(f) >= get_index(g)) {
+      const signal_t temp = f;
+      f = g;
+      g = temp;
+    }
+
     /* check cache */
-    const std::tuple<signal_t, signal_t> key = f <= g ?
-      std::tuple<signal_t, signal_t>({ f, g }) :
-      std::tuple<signal_t, signal_t>({ g, f });
+    const std::tuple<signal_t, signal_t> key = { f, g };
     const auto it = computed_table_AND.find(key);
     if (it != computed_table_AND.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+    /* we also check that the answer is not in the OR cache since 
+       f & g == (~f) | (~g) */
+    const auto it_or = computed_table_OR.find({ NOT(f), NOT(g) });
+    if (it != computed_table_OR.end()) {
       /* we found a node in the cache */
       return it->second;
     }
@@ -353,12 +376,25 @@ public:
   signal_t OR(signal_t f, signal_t g) {
     ++num_invoke_or;
 
+    /* for simplicity in the cache we want the index of f to be 
+       smaller that the index of g */
+    if (get_index(f) >= get_index(g)) {
+      const signal_t temp = f;
+      f = g;
+      g = temp;
+    }
+
     /* check cache */
-    const std::tuple<signal_t, signal_t> key = f <= g ?
-      std::tuple<signal_t, signal_t>({ f, g }) :
-      std::tuple<signal_t, signal_t>({ g, f });
+    const std::tuple<signal_t, signal_t> key = { f, g };
     const auto it = computed_table_OR.find(key);
     if (it != computed_table_OR.end()) {
+      /* we found a node in the cache */
+      return it->second;
+    }
+    /* we also check that the answer is not in the AND cache since 
+       f | g == (~f) & (~g) */
+    const auto it_and = computed_table_AND.find({ NOT(f), NOT(g) });
+    if (it != computed_table_AND.end()) {
       /* we found a node in the cache */
       return it->second;
     }
@@ -436,6 +472,14 @@ public:
   signal_t ITE(signal_t f, signal_t g, signal_t h) {
     ++num_invoke_ite;
 
+    /* for simplicity of the cache, we want f to not be complemented */
+    if (is_complemented(f)) {
+      f = NOT(f);
+      const signal_t temp = g;
+      g = h;
+      h = temp;
+    }
+
     /* check cache */
     const std::tuple<signal_t, signal_t, signal_t> key({ f, g, h });
     const auto it = computed_table_ITE.find(key);
@@ -467,10 +511,7 @@ public:
       x = F.v;
       f0 = F.E;
       f1 = F.T;
-      if (is_complemented(f)) {
-        f0 = NOT(f0);
-        f1 = NOT(f1);
-      }
+      /* f cannot be complemented */
       if (G.v == F.v) {
         g0 = G.E;
         g1 = G.T;
