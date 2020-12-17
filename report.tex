@@ -1,0 +1,51 @@
+\documentclass[nonacm=true]{acmart}
+
+\usepackage[
+% disable
+]{todonotes}
+
+\usepackage{minted}
+
+\title{CS-472: Design Technologies for Integrated Systems : Final project}
+\subtitle{Extended Binary Decision Diagram Package: Pull request \#???}
+\author{Alexandre Pinazza}
+\email{alexandre.pinazza@epfl.ch}
+\affiliation{
+    \institution{IC, EPFL}
+    \state{Vaud}
+    \city{Lausanne}
+    \country{Switzerland}
+}
+\date{December 2020}
+
+\begin{document}
+\maketitle
+\todo{Include pull request number}
+
+\section{Introduction}
+\todo{Write introduction}
+
+\section{Operation cache}
+To avoid computing the same operation multiple time, we can use a cache that stores the result of each computations.
+
+\begin{minted}{cpp}
+std::unordered_map<index_t, index_t> not_cache;
+std::unordered_map<std::pair<index_t, index_t>, index_t> and_cache;
+std::unordered_map<std::pair<index_t, index_t>, index_t> or_cache;
+std::unordered_map<std::pair<index_t, index_t>, index_t> xor_cache;
+std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t> ite_cache;
+\end{minted}
+
+So each time an operation is used, it firstly checks if its parameters are in the corresponding cache. If it is, the answer from the cache is directly returned. If it is not the "normal" computation begins. Then if it is not a trivial case\footnote{The trivial cases are not checked before the cache because they count in the invocation number.} result is firstly stored in the cache before been returned.
+
+For commutative operations -- XOR, OR and AND -- the order of the parameters does not matter and so only one order is stored in the cache. I chose to use the parameters in increasing order with respect to their index in the node table. 
+
+\section{Complemented edge}
+\todo{Write complemented edge}
+
+\section{Node reference count tracing}
+\todo{Write node reference count tracing}
+
+\listoftodos{}
+
+\end{document}
