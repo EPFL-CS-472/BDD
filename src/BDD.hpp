@@ -93,12 +93,6 @@ public:
    * THEN child `T`, and ELSE child `E`. */
   index_t unique( var_t var, index_t T, index_t E )
   {
-      //std::cout << "BDD UNIQUE" << std::endl;
-      //for (auto i = 0u; i < nodes.size(); ++i) print_one(nodes[i]);
-
-      //std::cout << "var " << var << " T " << T << " E " << E << std::endl;
-      //std::cout << "T.v " << nodes[T].v << std::endl;
-
     assert( var < num_vars() && "Variables range from 0 to `num_vars - 1`." );
     assert( T < nodes.size() && "Make sure the children exist." );
     assert( E < nodes.size() && "Make sure the children exist." );
@@ -125,16 +119,6 @@ public:
       nodes.emplace_back(Node({ var, T, E, false, false, false }));
       nodes_copy = nodes;
       unique_table[var][{T, E}] = new_index;
-      
-      /* complement edges when the BDD structure is completed */
-      /*if ((var == 0) && (new_index != 2))
-      {
-          std::cout << "une\n";
-          complement_bdd(new_index);
-          /* nodes size has changed */
-          /*return nodes.size() - 1;
-      }*/
-
       return new_index;
     }
   }
@@ -187,14 +171,6 @@ public:
 
   /* Add complemented edges. */
   void complement_bdd(index_t f) {
-      /*std::cout << "BDD DEBUT" << std::endl;
-      for (auto i = 0u; i < nodes.size(); ++i)
-      {
-          std::cout << "i: " << i << " ";
-          print_one(nodes[i]);
-      }
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
       std::vector<std::pair<index_t, bool>> previous_nodes;
       bool then_comp = false;
 
@@ -229,29 +205,11 @@ public:
           }
       }
 
-      /*std::cout << "BDD COMP SIMPLE" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i)
-      {
-          std::cout << "i: " << i << " ";
-          print_one(nodes[i]);
-      }
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
       /* remove complements from THEN edges */
       while (then_comp)
       {
           for (auto i = f; i > 0u; --i)
           {
-              /*std::cout << "NODE EN QUESTION\n";
-              print_one(nodes[i]);
-              std::cout << "BDD BOUCLE" << std::endl;
-              for (int i = 0; i < nodes.size(); ++i)
-              {
-                  std::cout << "i: " << i << " ";
-                  print_one(nodes[i]);
-              }
-              std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
               /* edge f -> x0 */
               if ((i == f) && (nodes[i].T_comp == true))
               {
@@ -271,7 +229,6 @@ public:
                       for (auto j = 0u; j < previous_nodes.size(); ++j)
                       {
                           index_t prev = std::get<0>(previous_nodes[j]);
-                          //std::cout << "nodes i: " << i << " has previous: " << prev << std::endl;
                           if (std::get<1>(previous_nodes[j]) == true)
                               nodes[prev].T_comp = !nodes[prev].T_comp;
                           else
@@ -283,18 +240,8 @@ public:
           then_comp = then_complemented();
       }
 
-      /*std::cout << "BDD APRES" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i)
-      {
-          std::cout << "i: " << i << " ";
-          print_one(nodes[i]);
-      }
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
+      /* update indices and remove dead nodes */
       update_nodes(f);
-      /*std::cout << "BDD NODE COOOOOOL" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i) print_one(nodes[i]);
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
@@ -309,13 +256,13 @@ public:
 
   index_t ref(index_t f)
   {
-      /* TODO */
+      /* NOT DONE SINCE GARBAGE COLLECTION WAS IMPLEMENTED THROUGH COMPLEMENTED EDGES BDD ALGORITHM */
       return f;
   }
 
   void deref(index_t f)
   {
-      /* TODO */
+      /* NOT DONE SINCE GARBAGE COLLECTION WAS IMPLEMENTED THROUGH COMPLEMENTED EDGES BDD ALGORITHM */
   }
 
   /**********************************************************/
@@ -813,8 +760,9 @@ public:
     }
   }
 
-  Truth_Table get_tt( index_t f, uint8_t self_call = 0u ) //const
+  Truth_Table get_tt( index_t f, bool self_call = false ) //const
   {
+    /* in case some nodes were deleted */
     if (!self_call)
         nodes = nodes_copy;
 
@@ -826,24 +774,14 @@ public:
         first_call++;
         if ((f != 0) && (f != 1))
         {
+            /* rearrange the BDD */
             rearrange_bdd(f);
             f = nodes.size() - 1;
         }
-        /*std::cout << "BDD REARRANGED\n";
-        for (int i = 0; i < nodes.size(); ++i)
-        {
-            std::cout << "i: " << i << " ";
-            print_one(nodes[i]);
-        }*/
+
+        /* complement the BDD */
         complement_bdd(f);
         f = nodes.size() - 1;
-        /*std::cout << "BDD compppp\n";
-        for (int i = 0; i < nodes.size(); ++i)
-        {
-            std::cout << "i: " << i << " ";
-            print_one(nodes[i]);
-        }
-        std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
     }
 
     if ( f == constant( false ) )
@@ -943,7 +881,7 @@ public:
 
   uint64_t num_invoke() const
   {
-    return /*num_invoke_not +*/ num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
+    return num_invoke_not + num_invoke_and + num_invoke_or + num_invoke_xor + num_invoke_ite;
   }
 
 private:
@@ -973,7 +911,7 @@ private:
     return n + 1u;
   }
 
-  /* Inspect the hash table */
+  /* Inspect the hash table. */
   std::tuple<bool, index_t> inspect_table(std::tuple<index_t, index_t, index_t, std::string> t)
   {
     bool found = false;
@@ -1029,10 +967,6 @@ private:
       /* removing edges to terminal node 0 */
       remove_terminal_0();
 
-      /*std::cout << "BDD REMOVE 0" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i) print_one(nodes[i]);
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
       /* find equivalent nodes */
       for (auto i = 0u; i < nodes.size(); ++i)
       {
@@ -1069,10 +1003,6 @@ private:
       sort(to_remove.begin(), to_remove.end());
       nodes_unchanged = nodes;
 
-      /*std::cout << "BDD UPDATE IND" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i) print_one(nodes[i]);
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
-
       /* delete nodes */
       for (auto i = 1u; i < nodes.size(); ++i)
       {
@@ -1083,10 +1013,6 @@ private:
           }
       }
       nodes = nodes_temp;
-
-      /*std::cout << "BDD DELETE IND" << std::endl;
-      for (int i = 0; i < nodes.size(); ++i) print_one(nodes[i]);
-      std::cout << "f -> x0 comp? " << nodes[f].f_comp << std::endl;*/
 
       /* shift indices */
       shift_indices(nodes_unchanged);
@@ -1289,6 +1215,4 @@ private:
 
   /* number of first calls of truth table */
   uint8_t first_call = 0u;
-  /* truth_table called multiple times */
-  bool multiple_call = false;
 };
