@@ -92,11 +92,11 @@ public:
 
             if (bits==1)
 	    {
-		this -> bits.emplace_back(true) ;
+		this -> bits.push_back(true) ;
 	    }
 	    else
 	    {
-		this -> bits.emplace_back(false) ;
+		this -> bits.push_back(false) ;
 	    }
 
         }
