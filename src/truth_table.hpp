@@ -114,7 +114,7 @@ public:
         
         for ( auto i = 0u; i < str.size(); ++i )
         {
-           bits.emplace_back(str[i] == '1');
+           bits.push_back(str[i] == '1');
         }
     }
 
@@ -173,7 +173,7 @@ inline Truth_Table operator~( Truth_Table const& tt )
     std::vector<bool> complemented;
     for (auto i=0 ; i < tt.bits.size() ; i++)
     {
-        complemented.emplace_back(!tt.bits[i]);   
+        complemented.push_back(!tt.bits[i]);   
     }
     return Truth_Table( tt.num_var, complemented );
 }
@@ -196,7 +196,7 @@ inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
     assert( tt1.num_var == tt2.num_var );
     std::vector<bool> tt_AND;
     for (auto i = 0u; i < tt1.bits_size; i++) {
-        tt_AND.emplace_back(tt1.bits[i] && tt2.bits[i]);
+        tt_AND.push_back(tt1.bits[i] && tt2.bits[i]);
     }
     return Truth_Table( tt1.num_var, tt_AND );
 }
@@ -273,10 +273,10 @@ inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, 
     while (i < (1<<num_var)) {
         for (auto j = 0u ; j < pattern; j++) 
         {
-            mask.emplace_back(polarity);
+            mask.push_back(polarity);
         }
         for (auto j = 0u; j < pattern ; j++) {
-            mask.emplace_back(!polarity);
+            mask.push_back(!polarity);
         }
         i += 2*pattern ;
     }
