@@ -185,6 +185,7 @@ public:
   /**********************************************************/
   signal_t ref( signal_t f )
   {
+    if (f == constant(false) || f == constant(true)) return ; 
     ++refs[get_index(f)];
     return f;
   }
