@@ -53,6 +53,7 @@ class BDD {
 	 
 		struct Node 
     {
+			Node(var_t v, C_Edge T, C_Edge E, bool isAlive) : v(v), T(T), E(E), isAlive(isAlive), count(0) {};
 			var_t v; /* corresponding variable */
 			C_Edge T; /* index of pointing node of  THEN child */
 			C_Edge E; /* index of pointing node of ELSE child */
