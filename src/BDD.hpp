@@ -47,15 +47,12 @@ class BDD {
 
 		struct C_Edge 
     {
-			//C_Edge(index_t ind) : ind(ind), isComp(false) {};
-			//C_Edge(index_t ind, bool isComp) : ind(ind), isComp(isComp) {};
 			index_t ind; /* node  pointed  by the  edge */
-			bool isComp = false; //to know if the edge is complemented or not
+			bool isComp; //to know if the edge is complemented or not
 		};
 	 
 		struct Node 
     {
-			Node(var_t v, C_Edge T, C_Edge E, bool isAlive) : v(v), T(T), E(E), isAlive(isAlive), count(0) {};
 			var_t v; /* corresponding variable */
 			C_Edge T; /* index of pointing node of  THEN child */
 			C_Edge E; /* index of pointing node of ELSE child */
@@ -68,7 +65,7 @@ class BDD {
 			unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ),
 			num_invoke_xor( 0u ), num_invoke_ite( 0u ) 
        { 
-			nodes.emplace_back( Node{num_vars, 0, 0, true} ); /* constant 0 */
+			nodes.emplace_back( Node({num_vars, 0, 0, true}) ); /* constant 0 */
         	//nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
 			/* `nodes` is initialized with 1 `Node`s representing the terminal (positive) nodes.
 			 * `v` is `num_vars` and his indice is 0.
