@@ -22,22 +22,38 @@ bool check( Truth_Table const& tt, string const& ans )
   }
 }
 
-void check( Truth_Table const& tt, Truth_Table const& tt2 )
+bool check( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   cout << "  checking function correctness";
-  if ( tt == tt2 )
+  if ( tt1 == tt2 )
   {
     cout << "...passed." << endl;
+    return true;
   }
   else
   {
-    cout << "...failed. (expect " << tt2 << ", but get " << tt << ")" << endl;
+    cout << "...failed. (expect " << tt2 << ", but get " << tt1 << ")" << endl;
+    return false;
   }
 }
 
-bool check( uint64_t actual, uint64_t expected )
+bool checkLE( uint64_t actual, uint64_t expected )
 {
   if ( actual <= expected )
+  {
+    cout << "...passed." << endl;
+    return true;
+  }
+  else
+  {
+    cout << "...failed. (expect <= " << expected << ", but get " << actual << ")" << endl;
+    return false;
+  }
+}
+
+bool checkEQ( uint64_t actual, uint64_t expected )
+{
+  if ( actual == expected )
   {
     cout << "...passed." << endl;
     return true;
@@ -49,44 +65,10 @@ bool check( uint64_t actual, uint64_t expected )
   }
 }
 
-ostream& operator<<(ostream& os, const struct BDD::Node& book) {
-    return os << "Value: " << book.v << endl
-              << "Then: " << book.T.child << " inv : " << book.T.inv << endl
-              << "Else: " << book.E.child << " inv : " << book.E.inv << endl;
-
-}
-
-void print(std::vector<struct BDD::Node> const &input, std::ostream& os = std::cout)
-{
-    for (uint64_t i = 0u; i < input.size(); i++) {
-        os << i << input.at(i) << endl;
-    }
-}
-
-ostream& operator<<(ostream& os, const std::unordered_map<std::pair<BDD::index_t, BDD::index_t>, BDD::index_t>& book) {
-    for(auto it : book){
-     /* os << "    T :" << it.first.first.child << " inv : " << it.first.first.inv  << " E :" << it.first.second.child;
-        os << " inv : " << it.first.second.inv << " Node :" << it.second.child << " inv : " << it.second.inv << endl;
-    */
-        os << "    T :" << it.first.first << " E :" << it.first.second;
-                os << " Node :" << it.second << endl;
-    }
-
-    return os;
-}
-
-void print(std::vector<std::unordered_map<std::pair<BDD::index_t, BDD::index_t>, BDD::index_t>> map, std::ostream& os = std::cout)
-{
-    for (uint64_t i = 0u; i < map.size(); i++) {
-        os << i << endl;
-        os << map.at(i) << endl;
-    }
-}
-
 int main()
 {
   bool passed = true;
-  /*{
+  {
     cout << "test 00: large truth table";
     Truth_Table tt( "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" );
 
@@ -100,207 +82,202 @@ int main()
       passed = false;
     }
   }
-*/
+
   {
     cout << "test 01: computed table" << endl;
     BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.XOR( bdd.AND( x0, x1 ), bdd.AND( x0, x1 ) );
+    std::cout << "89" << std::endl;
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    std::cout << "90" << std::endl;
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    std::cout << "92" << std::endl;
+    auto const g = bdd.ref( bdd.AND( x0, x1 ) );
+    std::cout << "94" << std::endl;
+    auto const h = bdd.ref( bdd.AND( x0, x1 ) );
+    std::cout << "96" << std::endl;
+    bdd.deref( x0 ); bdd.deref( x1 );
+
+    auto const f = bdd.ref( bdd.XOR( g, h ) );
+    bdd.deref( g ); bdd.deref( h );
     auto const tt = bdd.get_tt( f );
 
     passed &= check( tt, "0000" );
     cout << "  checking number of computation";
-    passed &= check( bdd.num_invoke(), 4 );
-    cout << tt << endl;
-
+    passed &= checkLE( bdd.num_invoke(), 5 );
   }
 
   {
     cout << "test 02: complemented edges" << endl;
     BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.XOR( x0, x1 );
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    auto const f = bdd.ref( bdd.XOR( x0, x1 ) );
+    bdd.deref( x0 ); bdd.deref( x1 );
     auto const tt = bdd.get_tt( f );
-   // bdd.print(f);
-    bdd.cce_conversion(f);
-   // bdd.print(f);
+
     passed &= check( tt, "0110" );
     cout << "  checking BDD size (reachable nodes)";
-    passed &= check( bdd.num_nodes( f ), 2 );
-  }
-/*
-  {
+    passed &= checkEQ( bdd.num_nodes( f ), 2 );
+
     cout << "test 03: reference count" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.XOR( x0, x1 );
-    auto const tt = bdd.get_tt( f );
-
-    passed &= check( tt, "0110" );
     cout << "  checking BDD size (living nodes)";
-    passed &= check( bdd.num_nodes(), 2 );
-  }
-  {
-    cout << "test 00: x0 XOR x1" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.XOR( x0, x1 );
-    auto const tt = bdd.get_tt( f );
-    bdd.print( f );
-    cout << tt << endl;
-    passed &=check( tt, "0110" );
-    passed &=check( bdd.num_nodes( f ), 3 );
+    passed &= checkEQ( bdd.num_nodes(), 2 );
   }
 
   {
-    cout << "test 01: x0 AND x1" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.AND( x0, x1 );
-    auto const tt = bdd.get_tt( f );
-    bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "1000" );
-    passed &=check( bdd.num_nodes( f ), 2 );
-  }
-
-  {
-    cout << "test 02: ITE(x0, x1, x2)" << endl;
+    cout << "test 04: ITE(x2, x1, x0) AND ITE(x0, x2 AND NOT x1, x1 XOR x2)" << endl;
     BDD bdd( 3 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const x2 = bdd.literal( 2 );
-    auto const f = bdd.ITE( x0, x1, x2 );
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    cout << bdd.get_tt(x0) << endl;
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    cout << bdd.get_tt(x1) << endl;
+    auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    cout << bdd.get_tt(x2) << endl;
+
+    auto const f1 = bdd.ref( bdd.ITE( x2, x1, x0 ) );
+    cout << bdd.get_tt(f1) << endl;
+
+    auto const g = bdd.ref( bdd.AND( x2, bdd.NOT( x1 ) ) );
+    cout << bdd.get_tt(bdd.NOT(x1)) << endl;
+    cout << bdd.get_tt(g) << endl;
+    auto const h = bdd.ref( bdd.XOR( x1, x2 ) );
+    cout << bdd.get_tt(h) << endl;
+    auto const f2 = bdd.ref( bdd.ITE( x0, g, h ) );
+    cout << bdd.get_tt(f2) << endl;
+    bdd.deref( g ); bdd.deref( h );
+    bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 );
+
+    auto const f = bdd.ref( bdd.AND( f1, f2 ) );
+    cout << bdd.get_tt(x0) << endl;
+    bdd.deref( f1 ); bdd.deref( f2 );
+
     auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "11011000" );
-    passed &=check( bdd.num_nodes( f ), 3 );
+    passed &= check( tt, "00000000" );
+    cout << "  checking BDD size (reachable nodes)";
+    passed &= checkEQ( bdd.num_nodes( f ), 0 );
+    cout << "  checking BDD size (living nodes)";
+    passed &= checkEQ( bdd.num_nodes(), 0 );
   }
 
   {
-    cout << "test 03: XOR(x0, XOR(1, 0))" << endl;
-    BDD bdd( 1 );
-    auto const x0 = bdd.literal( 0 );
-    auto const f = bdd.XOR( x0, bdd.XOR( {0,1}, {0,0} ) );
+    cout << "test 05: ITE(x2 AND x3, x1 AND NOT x0, NOT x2 AND NOT x4)" << endl;
+    BDD bdd( 5 );
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    auto const x3 = bdd.ref( bdd.literal( 3 ) );
+    auto const x4 = bdd.ref( bdd.literal( 4 ) );
+    auto const f1 = bdd.ref( bdd.AND( x2, x3 ) );
+    auto const f2 = bdd.ref( bdd.AND( x1, bdd.NOT( x0 ) ) );
+    auto const f3 = bdd.ref( bdd.AND( bdd.NOT( x2 ), bdd.NOT( x4 ) ) );
+    bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 ); bdd.deref( x3 ); bdd.deref( x4 );
+
+    auto const f = bdd.ref( bdd.ITE( f1, f2, f3 ) );
+    bdd.deref( f1 ); bdd.deref( f2 ); bdd.deref( f3 );
+
     auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "01" );
-    passed &=check( bdd.num_nodes( f ), 1 );
+    passed &= check( tt, "01000000000000000100111100001111" );
+    cout << "  checking BDD size (reachable nodes)";
+    passed &= checkEQ( bdd.num_nodes( f ), 6 );
+    cout << "  checking BDD size (living nodes)";
+    passed &= checkEQ( bdd.num_nodes(), 6 );
   }
 
-  {
-    cout << "test 04: AND(x0, AND(1, 1))" << endl;
-    BDD bdd( 1 );
-    auto const x0 = bdd.literal( 0 );
-    auto const f = bdd.AND( x0, bdd.AND( {0,1}, {0,1} ) );
-    auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "10" );
-    passed &=check( bdd.num_nodes( f ), 1 );
-  }
+  /*{
+    cout << "test 06: more than 6 variables & multiple POs" << endl;
+    BDD bdd( 10 );
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    auto const x3 = bdd.ref( bdd.literal( 3 ) );
+    auto const x4 = bdd.ref( bdd.literal( 4 ) );
+    auto const x5 = bdd.ref( bdd.literal( 5 ) );
+    auto const x6 = bdd.ref( bdd.literal( 6 ) );
+    auto const x7 = bdd.ref( bdd.literal( 7 ) );
+    auto const x8 = bdd.ref( bdd.literal( 8 ) );
+    auto const x9 = bdd.ref( bdd.literal( 9 ) );
 
-  {
-    cout << "test 05: AND(x0, AND(0, 0))" << endl;
-    BDD bdd( 1 );
-    auto const x0 = bdd.literal( 0 );
-    auto const f = bdd.AND( x0, bdd.AND({0, 0}, {0,0} ) );
-    auto const tt = bdd.get_tt( f );
-    bdd.print( f );
-    cout << tt << endl;
-    passed &=check( tt, "00" );
-    passed &=check( bdd.num_nodes( f ), 0 );
-  }
+    auto const f1 = bdd.ref( bdd.OR( x0, x9 ) );
 
+    auto const g1 = bdd.ref( bdd.AND( x6, bdd.NOT( x4 ) ) );
+    auto const g2 = bdd.ref( bdd.AND( x4, bdd.NOT( x6 ) ) );
+    auto const f2 = bdd.ref( bdd.OR( g1, g2 ) );
+    bdd.deref( g1 ); bdd.deref( g2 );
+
+    auto const f3 = bdd.ref( bdd.ITE( x6, bdd.NOT( x2 ), bdd.NOT( x6 ) ) );
+
+    bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 ); bdd.deref( x3 ); bdd.deref( x4 );
+    bdd.deref( x5 ); bdd.deref( x6 ); bdd.deref( x7 ); bdd.deref( x8 ); bdd.deref( x9 );
+
+    auto const tt1 = bdd.get_tt( f1 );
+    passed &= check( tt1, create_tt_nth_var( 10, 0 ) | create_tt_nth_var( 10, 9 ) );
+    auto const tt2 = bdd.get_tt( f2 );
+    passed &= check( tt2, create_tt_nth_var( 10, 4 ) ^ create_tt_nth_var( 10, 6 ) );
+    auto const tt3 = bdd.get_tt( f3 );
+    passed &= check( tt3, ~create_tt_nth_var( 10, 2 ) | ~create_tt_nth_var( 10, 6 ) );
+
+    cout << "  checking BDD size (reachable nodes) of f1";
+    passed &= checkEQ( bdd.num_nodes( f1 ), 2 );
+    cout << "  checking BDD size (reachable nodes) of f2";
+    passed &= checkEQ( bdd.num_nodes( f2 ), 2 );
+    cout << "  checking BDD size (reachable nodes) of f3";
+    passed &= checkEQ( bdd.num_nodes( f3 ), 2 );
+    cout << "  checking BDD size (living nodes)";
+    passed &= checkEQ( bdd.num_nodes(), 5 );
+  }
+*/
   {
-    cout << "test 06: XOR(ITE(x0, x1, x2), AND(x0, x3))" << endl;
+    cout << "test 07: computed table for XOR" << endl;
     BDD bdd( 4 );
-    auto const x0 = bdd.literal( 0 );
-   // print(bdd.nodes);
-    auto const x1 = bdd.literal( 1 );
-  //  print(bdd.nodes);
-    auto const x2 = bdd.literal( 2 );
-   // print(bdd.nodes);
-    auto const x3 = bdd.literal( 3 );
-   // print(bdd.nodes);
-    auto const g  = bdd.AND(x0, x3);
-   // print(bdd.nodes);
-    auto const h  = bdd.ITE(x0, x1, x2);
-   // print(bdd.nodes);
-    auto const f = bdd.XOR( bdd.ITE( x0, x1, x2 ), bdd.AND( x0, x3 ) );
-   // print(bdd.nodes);
-   // print(bdd.unique_table);
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    auto const x3 = bdd.ref( bdd.literal( 3 ) );
+
+    auto const g1 = bdd.ref( bdd.XOR( x2, x3 ) );
+    auto const g2 = bdd.ref( bdd.XOR( x1, g1 ) );
+    auto const g3 = bdd.ref( bdd.XOR( x0, g2 ) );
+    bdd.deref( g1 ); bdd.deref( g2 );
+
+    auto const h1 = bdd.ref( bdd.XOR( x3, x2 ) );
+    auto const h2 = bdd.ref( bdd.XOR( x0, x1 ) );
+    auto const h3 = bdd.ref( bdd.XOR( h1, h2 ) );
+    bdd.deref( h1 ); bdd.deref( h2 );
+
+    bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 ); bdd.deref( x3 );
+
+    auto const f = bdd.ref( bdd.XOR( g3, h3 ) );
+    bdd.deref( g3 ); bdd.deref( h3 );
+
     auto const tt = bdd.get_tt( f );
-    cout << tt << endl;
-   // print(bdd.nodes);
-
-
-    cout << f.child << " inv: " << f.inv << endl;
-    passed &=check( tt, "0111001011011000" );
-    passed &=check( bdd.num_nodes( f ), 5 );
+    passed &= check( tt, "0000000000000000" );
+    cout << "  checking number of computation";
+    passed &= checkLE( bdd.num_invoke(), 20 );
   }
 
   {
-    cout << "test 08: ITE(x0, x1, x1)" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.ITE( x0, x1, x1 );
-    auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "1100" );
-    passed &=check( bdd.num_nodes( f ), 1 );
+    cout << "test 08: computed table for ITE" << endl;
+    BDD bdd( 3 );
+    auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    auto const x2 = bdd.ref( bdd.literal( 2 ) );
+
+    auto const f1 = bdd.ref( bdd.ITE( x1, x2, x0 ) );
+    auto const f2 = bdd.ref( bdd.ITE( bdd.NOT( x1 ), x0, x2 ) );
+    bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 );
+
+    auto const tt1 = bdd.get_tt( f1 );
+    passed &= check( tt1, "11100010" );
+    auto const tt2 = bdd.get_tt( f2 );
+    passed &= check( tt2, "11100010" );
+    cout << "  checking number of computation";
+    passed &= checkLE( bdd.num_invoke(), 10 );
   }
 
+  if ( passed )
   {
-    cout << "test 09: ITE(x0, x0, x1)" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.ITE( x0, x0, x1 );
-    auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "1110" );
-    passed &=check( bdd.num_nodes( f ), 2 );
+    cout << endl << "All tests passed, congrats!" << endl;
   }
 
-  {
-    cout << "test 10: ITE(x0, x1, x0)" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.ITE( x0, x1, x0 );
-    auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
-    passed &=check( tt, "1000" );
-    passed &=check( bdd.num_nodes( f ), 2 );
-  
-  }
-
-  {
-    cout << "test 10: ITE(x0, x1, x0)" << endl;
-    BDD bdd( 2 );
-    auto const x0 = bdd.literal( 0 );
-    auto const x1 = bdd.literal( 1 );
-    auto const f = bdd.OR( x0, x1 );
-    auto const g = bdd.XOR( x0, x1);
-    auto const h = bdd.ITE( x0, f, g);
-    auto const tt = bdd.get_tt( h );
-    bdd.print( h );
-    cout << tt << endl;
-   // passed &=check( tt, "1000" );
-  //  passed &=check( bdd.num_nodes( f ), 2 );
-
-  }*/
   return passed ? 0 : 1;
 }
