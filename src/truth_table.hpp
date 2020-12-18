@@ -45,63 +45,59 @@ inline std::vector<uint64_t> length_mask(uint8_t const num_var, uint64_t size)
   }
   else 
   {
-    std::vector<uint64_t> mask(size, 63u);
+    std::vector<uint64_t> mask(size, (0u - 1));
     return mask;
   }
 }
 
 /* Returns mask used to get the bits where a certain variable is 1 */
-inline std::vector<uint64_t> var_mask_pos(uint8_t const num_var, uint8_t vars) 
+inline std::vector<uint64_t> var_mask_pos(uint8_t const num_var, uint8_t const vars) 
 {
   uint64_t size = 1u;
-  if (num_var <= 6) 
+  if (num_var < 6) 
   {
     std::vector<uint64_t> mask(size, var_mask_pos_table[num_var]);
     return mask;
   }
   uint64_t shift = vars - 6;
-  if (shift < 1) std::cout << "NYU1" << std::endl; 
   size = size << shift;
-  uint64_t half_blocks = vars - 7;
-  if (half_blocks < 1) std::cout << "NYU2" << std::endl; 
+  uint64_t half_blocks = num_var - 6;
   std::vector<uint64_t> mask;
-  uint64_t ones, zeroes = (1 << half_blocks);
+  uint64_t ones = (1 << half_blocks);
+  uint64_t zeroes = (1 << half_blocks);
   for (auto b = 0u; b < size; b += ones + zeroes) {
     for (auto i = 0u; i < ones; i++) {
-      mask.push_back(63u);
+      mask.push_back(0u - 1);
     }
     for (auto i = 0u; i < zeroes; i++) {
       mask.push_back(0u);
     }
-    std::cout << "NYU3 " << b << std::endl; 
   }
   return mask;
 }
 
 /* Returns mask used to get the bits where a certain variable is 0 */
-inline std::vector<uint64_t> var_mask_neg(uint8_t const num_var, uint64_t vars) 
+inline std::vector<uint64_t> var_mask_neg(uint8_t const num_var, uint64_t const vars) 
 {
   uint64_t size = 1u;
-  if (num_var <= 6) 
+  if (num_var < 6) 
   {
     std::vector<uint64_t> mask(size, var_mask_neg_table[num_var]);
     return mask;
   }
   uint64_t shift = vars - 6;
-  if (shift < 1) std::cout << "NYU1" << std::endl; 
   size = size << shift;
-  uint64_t half_blocks = vars - 7;
-  if (half_blocks < 1) std::cout << "NYU2" << std::endl; 
+  uint64_t half_blocks = num_var - 6;
   std::vector<uint64_t> mask;
-  uint64_t ones, zeroes = (1 << half_blocks);
+  uint64_t ones = (1 << half_blocks);
+  uint64_t zeroes = (1 << half_blocks);
   for (auto b = 0u; b < size; b += ones + zeroes) {
     for (auto i = 0u; i < zeroes; i++) {
       mask.push_back(0u);
     }
     for (auto i = 0u; i < ones; i++) {
-      mask.push_back(63u);
+      mask.push_back(0u - 1);
     }
-    std::cout << "NYU3 " << b << std::endl; 
   }
   return mask;
 }
@@ -124,9 +120,7 @@ class Truth_Table
 {
 public:
   Truth_Table( uint8_t num_var )
-   : num_var( num_var ) { 
-     bits.push_back(0u);
-   }
+   : num_var( num_var ), bits({0u}) { }
 
   /*Truth_Table( uint8_t num_var, uint64_t bits )
    : num_var( num_var ), bits( bits & length_mask[num_var] ) { }*/
@@ -256,9 +250,10 @@ inline bool operator==( Truth_Table const& tt1, Truth_Table const& tt2 )
     return false;
   }
   for (auto i = 0u; i < tt1.bits.size(); i++) {
-    auto mask = length_mask(tt1.num_var, tt1.bits.size());
+    std::vector<uint64_t> mask = length_mask(tt1.num_var, tt1.bits.size());
     if ( ( tt1.bits[i] & mask[i] ) != ( tt2.bits[i] & mask[i] ) ) 
     {
+      std::cout << "mask: " << unsigned(mask[i]) << " i: " << i << std::endl;
       return false;
     }
   }
