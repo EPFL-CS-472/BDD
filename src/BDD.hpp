@@ -53,7 +53,6 @@ class BDD {
 	 
 		struct Node 
     {
-			Node(var_t v, C_Edge T, C_Edge E, bool isAlive) : v(v), T(T), E(E), isAlive(isAlive), count(0) {};
 			var_t v; /* corresponding variable */
 			C_Edge T; /* index of pointing node of  THEN child */
 			C_Edge E; /* index of pointing node of ELSE child */
@@ -67,7 +66,7 @@ class BDD {
 			num_invoke_xor( 0u ), num_invoke_ite( 0u ) 
        { 
 			nodes.push_back( Node({num_vars, 0, 0, true}) ); /* constant 0 */
-        	//nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
+        	//nodes.push_back( Node({num_vars, 1, 1}) ); /* constant 1 */
 			/* `nodes` is initialized with 1 `Node`s representing the terminal (positive) nodes.
 			 * `v` is `num_vars` and his indice is 0.
 			 * (Note that the real variables range from 0 to `num_vars - 1`.)
