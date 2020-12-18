@@ -65,7 +65,7 @@ class BDD {
 			unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ),
 			num_invoke_xor( 0u ), num_invoke_ite( 0u ) 
        { 
-			nodes.emplace_back( Node{num_vars, 0, 0} ); /* constant 0 */
+			nodes.emplace_back( Node({num_vars, 0, 0}) ); /* constant 0 */
         	//nodes.push_back( Node({num_vars, 1, 1}) ); /* constant 1 */
 			/* `nodes` is initialized with 1 `Node`s representing the terminal (positive) nodes.
 			 * `v` is `num_vars` and his indice is 0.
@@ -125,7 +125,7 @@ class BDD {
 			/* Create a new node and insert it to the unique table. */
 			index_t const new_node = nodes.size();
 			//std::cout << "new node index :" << new_node << std::endl;
-			nodes.emplace_back( Node{var, T, E} );
+			nodes.emplace_back( Node({var, T, E}) );
 			unique_table[var][std::make_tuple(T.ind, E.ind, E.isComp)] = C_Edge { new_node, Tcomp } ;
 			ref(T);
 			ref(E);
