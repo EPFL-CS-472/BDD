@@ -1,5 +1,5 @@
 CC := g++
-CFLAGS := -g -std=c++11
+CFLAGS := -g -std=c++17
 exe = bdd
 exe2 = bdd_simple
 path = src
