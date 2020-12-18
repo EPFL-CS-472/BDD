@@ -832,20 +832,6 @@ public:
               rearrange_bdd_for_count(f);
               f = nodes.size() - 1;
           }
-          /*std::cout << "BDD AVANT COMP\n";
-          for (int i = 0; i < nodes.size(); ++i)
-          {
-              std::cout << "i: " << i << " ";
-              print_one(nodes[i]);
-          }
-          complement_bdd(f);
-          
-          std::cout << "BDD NUM\n";
-          for (int i = 0; i < nodes.size(); ++i)
-          {
-              std::cout << "i: " << i << " ";
-              print_one(nodes[i]);
-          }*/
       }
 
     uint64_t n = 0u;
@@ -874,7 +860,7 @@ public:
 
     std::vector<bool> visited( nodes.size(), false );
     visited[0] = true;
-    visited[1] = true;
+    //visited[1] = true;
 
     return num_nodes_rec( f, visited );
   }
