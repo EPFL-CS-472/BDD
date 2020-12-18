@@ -65,7 +65,7 @@ class BDD {
 			unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ),
 			num_invoke_xor( 0u ), num_invoke_ite( 0u ) 
        { 
-			nodes.emplace_back( Node({num_vars, 0, 0, true}) ); /* constant 0 */
+			nodes.push_back( Node({num_vars, 0, 0, true}) ); /* constant 0 */
         	//nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
 			/* `nodes` is initialized with 1 `Node`s representing the terminal (positive) nodes.
 			 * `v` is `num_vars` and his indice is 0.
@@ -125,7 +125,7 @@ class BDD {
 			/* Create a new node and insert it to the unique table. */
 			index_t const new_node = nodes.size();
 			//std::cout << "new node index :" << new_node << std::endl;
-			nodes.emplace_back( Node({var, T, E, true}) );
+			nodes.push_back( Node({var, T, E, true}) );
 			unique_table[var][std::make_tuple(T.ind, E.ind, E.isComp)] = C_Edge { new_node, Tcomp } ;
 			ref(T);
 			ref(E);
@@ -258,7 +258,7 @@ class BDD {
 			C_Edge const r1 = XOR( f1, g1 );
 			//deref(f1);
     		//deref(g1);			
-			computed_table_XOR.emplace_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
+			computed_table_XOR.push_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
 			return (unique( x, r1, r0 ));
 		}
 
@@ -330,7 +330,7 @@ class BDD {
 			C_Edge const r1 = AND( f1, g1 );
 			//deref(f1);
     		//deref(g1);
-			computed_table_AND.emplace_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
+			computed_table_AND.push_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
 			return (unique( x, r1, r0 ));
 		}
 
@@ -402,7 +402,7 @@ class BDD {
 			//deref(f1);
     		//deref(g1);
     		//deref(h1);
-			computed_table_OR.emplace_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
+			computed_table_OR.push_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp), unique( x, r1, r0 )) );
 			return (unique( x, r1, r0 ));
 		}
 
@@ -496,7 +496,7 @@ class BDD {
 			//deref(f1);
     		//deref(g1);
     		//deref(h1);
-			computed_table_ITE.emplace_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp, h.ind, h.isComp), unique( x, r1, r0 )) );
+			computed_table_ITE.push_back( std:: make_pair(std:: make_tuple(f.ind, f.isComp, g.ind, g.isComp, h.ind, h.isComp), unique( x, r1, r0 )) );
 			return (unique( x, r1, r0 ));
 		}
 
