@@ -47,8 +47,8 @@ class BDD {
 
 		struct C_Edge 
     {
-			C_Edge(index_t ind) : ind(ind), isComp(false) {};
-			C_Edge(index_t ind, bool isComp) : ind(ind), isComp(isComp) {};
+			//C_Edge(index_t ind) : ind(ind), isComp(false) {};
+			//C_Edge(index_t ind, bool isComp) : ind(ind), isComp(isComp) {};
 			index_t ind; /* node  pointed  by the  edge */
 			bool isComp = false; //to know if the edge is complemented or not
 		};
