@@ -2,9 +2,7 @@
 
 #include <iostream>
 #include <cassert>
-#include <string>
 #include <vector>
-
 #include <cmath>
 
 /* masks used to filter out unused bits */
@@ -54,17 +52,17 @@ inline std::vector<uint64_t> length_mask(uint8_t const num_var)
 }
 
 /* Returns mask used to get the bits where a certain variable is 1 */
-inline std::vector<uint64_t> var_mask_pos(uint8_t const num_var, uint8_t const vars) 
+inline std::vector<uint64_t> var_mask_pos(uint8_t const var, uint8_t const num_var) 
 {
   uint64_t size = 1u;
-  if (num_var < 6) 
+  if (var < 6) 
   {
-    std::vector<uint64_t> mask(size, var_mask_pos_table[num_var]);
+    std::vector<uint64_t> mask(size, var_mask_pos_table[var]);
     return mask;
   }
-  uint64_t shift = vars - 6;
+  uint64_t shift = num_var - 6;
   size = size << shift;
-  uint64_t half_blocks = num_var - 6;
+  uint64_t half_blocks = var - 6;
   std::vector<uint64_t> mask;
   uint64_t ones = (1 << half_blocks);
   uint64_t zeroes = (1 << half_blocks);
@@ -83,17 +81,17 @@ inline std::vector<uint64_t> var_mask_pos(uint8_t const num_var, uint8_t const v
 }
 
 /* Returns mask used to get the bits where a certain variable is 0 */
-inline std::vector<uint64_t> var_mask_neg(uint8_t const num_var, uint64_t const vars) 
+inline std::vector<uint64_t> var_mask_neg(uint8_t const var, uint64_t const num_var) 
 {
   uint64_t size = 1u;
-  if (num_var < 6) 
+  if (var < 6) 
   {
-    std::vector<uint64_t> mask(size, var_mask_neg_table[num_var]);
+    std::vector<uint64_t> mask(size, var_mask_neg_table[var]);
     return mask;
   }
-  uint64_t shift = vars - 6;
+  uint64_t shift = num_var - 6;
   size = size << shift;
-  uint64_t half_blocks = num_var - 6;
+  uint64_t half_blocks = var - 6;
   std::vector<uint64_t> mask;
   uint64_t ones = (1 << half_blocks);
   uint64_t zeroes = (1 << half_blocks);
