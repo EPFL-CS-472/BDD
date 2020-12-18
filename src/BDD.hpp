@@ -68,7 +68,7 @@ class BDD {
 			unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ),
 			num_invoke_xor( 0u ), num_invoke_ite( 0u ) 
        { 
-			nodes.emplace_back( Node{num_vars, C_Edge{0}, C_Edge{0}, true} ); /* constant 0 */
+			nodes.emplace_back( Node{num_vars, 0, 0, true} ); /* constant 0 */
         	//nodes.emplace_back( Node({num_vars, 1, 1}) ); /* constant 1 */
 			/* `nodes` is initialized with 1 `Node`s representing the terminal (positive) nodes.
 			 * `v` is `num_vars` and his indice is 0.
