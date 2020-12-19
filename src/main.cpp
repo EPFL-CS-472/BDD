@@ -86,15 +86,10 @@ int main()
   {
     cout << "test 01: computed table" << endl;
     BDD bdd( 2 );
-    std::cout << "89" << std::endl;
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
-    std::cout << "90" << std::endl;
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
-    std::cout << "92" << std::endl;
     auto const g = bdd.ref( bdd.AND( x0, x1 ) );
-    std::cout << "94" << std::endl;
     auto const h = bdd.ref( bdd.AND( x0, x1 ) );
-    std::cout << "96" << std::endl;
     bdd.deref( x0 ); bdd.deref( x1 );
 
     auto const f = bdd.ref( bdd.XOR( g, h ) );
@@ -128,27 +123,18 @@ int main()
     cout << "test 04: ITE(x2, x1, x0) AND ITE(x0, x2 AND NOT x1, x1 XOR x2)" << endl;
     BDD bdd( 3 );
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
-    cout << bdd.get_tt(x0) << endl;
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
-    cout << bdd.get_tt(x1) << endl;
     auto const x2 = bdd.ref( bdd.literal( 2 ) );
-    cout << bdd.get_tt(x2) << endl;
 
     auto const f1 = bdd.ref( bdd.ITE( x2, x1, x0 ) );
-    cout << bdd.get_tt(f1) << endl;
 
     auto const g = bdd.ref( bdd.AND( x2, bdd.NOT( x1 ) ) );
-    cout << bdd.get_tt(bdd.NOT(x1)) << endl;
-    cout << bdd.get_tt(g) << endl;
     auto const h = bdd.ref( bdd.XOR( x1, x2 ) );
-    cout << bdd.get_tt(h) << endl;
     auto const f2 = bdd.ref( bdd.ITE( x0, g, h ) );
-    cout << bdd.get_tt(f2) << endl;
     bdd.deref( g ); bdd.deref( h );
     bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 );
 
     auto const f = bdd.ref( bdd.AND( f1, f2 ) );
-    cout << bdd.get_tt(x0) << endl;
     bdd.deref( f1 ); bdd.deref( f2 );
 
     auto const tt = bdd.get_tt( f );
@@ -182,8 +168,8 @@ int main()
     cout << "  checking BDD size (living nodes)";
     passed &= checkEQ( bdd.num_nodes(), 6 );
   }
-
-  /*{
+/*
+  {
     cout << "test 06: more than 6 variables & multiple POs" << endl;
     BDD bdd( 10 );
     auto const x0 = bdd.ref( bdd.literal( 0 ) );

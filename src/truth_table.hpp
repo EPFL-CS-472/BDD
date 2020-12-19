@@ -3,6 +3,9 @@
 #include <iostream>
 #include <cassert>
 #include <string>
+#include <vector>
+
+static const uint64_t full = 0xffffffffffffffff;
 
 /* masks used to filter out unused bits */
 static const uint64_t length_mask[] = {
@@ -32,6 +35,88 @@ static const uint64_t var_mask_neg[] = {
   0x0000ffff0000ffff,
   0x00000000ffffffff};
 
+inline std::vector<uint64_t> get_var_pos(uint8_t numvar, uint8_t var){
+    assert(var < numvar);
+    std::vector<uint64_t> ret;
+    if(var < 6){
+        ret.push_back(var_mask_pos[var]);
+        for(size_t i = 0; i < (1 << (numvar - 6)) && numvar > 6 ; i++)
+            ret.push_back(var_mask_pos[var]);
+        return ret;
+    }else{
+        uint8_t n = 1 << (var - 6);
+        for(size_t i = 6; i < numvar - 1; i++){
+            for(size_t j = 0; j < n; j++)
+                ret.push_back(0x0);
+            for(size_t j = 0; j < n; j++)
+                ret.push_back(full);
+        }
+        return ret;
+    }
+}
+
+inline std::vector<uint64_t> get_var_neg(uint8_t numvar, uint8_t var){
+    assert(var < numvar);
+    std::vector<uint64_t> ret;
+    if(var < 6){
+        ret.push_back(var_mask_neg[var]);
+        for(size_t i = 0; i < (1 << (numvar - 6)) && numvar > 6; i++)
+            ret.push_back(var_mask_neg[var]);
+        return ret;
+    }else{
+        uint8_t n = 1 << (var - 6);
+        for(size_t i = 6; i < numvar - 1; i++){
+            for(size_t j = 0; j < n; j++)
+                ret.push_back(full);
+            for(size_t j = 0; j < n; j++)
+                ret.push_back(0x0);
+        }
+        return ret;
+    }
+}
+
+inline void shift_right_vec(std::vector<uint64_t>* bits, uint8_t pos){
+    uint64_t temp;
+    uint8_t mat_shift = pos >> 6;
+    size_t i;
+    // Shift entire matrix if number of pos to shift is > 64
+    for(i = 0; i < bits->size() - mat_shift && mat_shift > 0; i++){
+        bits->at(i) = bits->at(i+mat_shift);
+    }
+    // Set remaining matrix to 0
+    for(; i < bits->size(); i++)
+        bits->at(i) = 0u;
+    // Shift remaining pos if needed
+    uint8_t remaining_pos = pos - (64 << mat_shift);
+    for(i = 0; i < bits->size() - 1 && remaining_pos; i++){
+        temp = bits->at(i+1) << (64 - remaining_pos);
+        bits->at(i) = temp | (bits->at(i) >> remaining_pos);
+    }
+    // Shift last matrix
+    bits->at(i) = bits->at(i) >> remaining_pos;
+}
+
+inline void shift_left_vec(std::vector<uint64_t>* bits, uint8_t pos){
+    uint64_t temp;
+    uint8_t mat_shift = pos >> 6;
+    size_t i;
+    // Shift entire matrix if number of pos to shift is > 64
+    for(i = bits->size() - 1; i >= mat_shift && mat_shift > 0; i--){
+        bits->at(i) = bits->at(i - mat_shift);
+    }
+    // Set remaining matrix to 0
+    for(size_t j = 0; j < i + 1; j++)
+        bits->at(j) = 0u;
+    // Shift remaining pos if needed
+    uint8_t remaining_pos = pos - (64 << mat_shift);
+    for(i = bits->size() - 1; i > 0  && remaining_pos; i--){
+        temp = bits->at(i-1) >> (64 - remaining_pos);
+        bits->at(i) = temp | (bits->at(i) << remaining_pos);
+    }
+    // Shift last matrix
+    bits->at(i) = bits->at(i) << remaining_pos;
+}
+
 /* return i if n == 2^i and i <= 6, 0 otherwise */
 inline uint8_t power_two( const uint32_t n )
 {
@@ -43,17 +128,60 @@ inline uint8_t power_two( const uint32_t n )
     case 16u: return 4u;
     case 32u: return 5u;
     case 64u: return 6u;
+    case 128u: return 7u;
+    case 256u: return 8u;
+    case 512u: return 9u;
+    case 1024u: return 10u;
+    case 2048u: return 11u;
+    case 4096u: return 12u;
     default: return 0u;
   }
+}
+
+inline uint8_t log_two( const uint8_t n )
+{
+  uint8_t ret = 0;
+
+  while((n >> 1) > 0)
+      ret++;
+
+  return ret;
+}
+
+inline uint8_t get_bits_index( uint8_t pos)
+{
+    uint8_t ret = 0;
+    while(pos > 64u){
+        pos -= 64u;
+        ret++;
+    }
+    return ret;
+}
+
+inline std::vector<uint64_t> build_bits(uint8_t numvars){
+    std::vector<uint64_t> ret = {0u};
+    if(numvars < 6)
+        return ret;
+    for(size_t i = 0; i < numvars - 6; i++)
+        ret.push_back(0u);
+    return ret;
 }
 
 class Truth_Table
 {
 public:
+  using bits_t = std::vector<uint64_t>;
+
   Truth_Table( uint8_t num_var )
-   : num_var( num_var ), bits( 0u )
+      : num_var( num_var ), bits( build_bits(num_var) )
   {
-    assert( num_var <= 6u );
+  //  assert( num_var <= 6u );
+  }
+
+  Truth_Table( uint8_t num_var, bits_t bits_v )
+      : num_var( num_var ), bits( bits_v )
+  {
+ //   assert( num_var <= log_two(bits_v.size()) + 6 );
   }
 
   Truth_Table( uint8_t num_var, uint64_t bits )
@@ -63,7 +191,7 @@ public:
   }
 
   Truth_Table( const std::string str )
-   : num_var( power_two( str.size() ) ), bits( 0u )
+   : num_var( power_two( str.size() ) ), bits( build_bits(power_two( str.size() ) ))
   {
     if ( num_var == 0u )
     {
@@ -86,14 +214,16 @@ public:
   bool get_bit( uint8_t const position ) const
   {
     assert( position < ( 1 << num_var ) );
-    return ( ( bits >> position ) & 0x1 );
+    uint8_t index = get_bits_index(position);
+    return ( ( bits.at(index) >> (position - (index*64))) & 0x1 );
   }
 
   void set_bit( uint8_t const position )
   {
     assert( position < ( 1 << num_var ) );
-    bits |= ( uint64_t( 1 ) << position );
-    bits &= length_mask[num_var];
+    uint8_t index = get_bits_index(position);;
+    bits.at(index) |= ( uint64_t( 1 ) << (position - (index*64)) );
+    bits.at(get_bits_index(num_var)) &= length_mask[num_var-(get_bits_index(num_var)*64)];
   }
 
   uint8_t n_var() const
@@ -109,7 +239,7 @@ public:
 
 public:
   uint8_t const num_var; /* number of variables involved in the function */
-  uint64_t bits; /* the truth table */
+  std::vector<uint64_t> bits; /* the truth table */
 };
 
 /* overload std::ostream operator for convenient printing */
@@ -125,28 +255,44 @@ inline std::ostream& operator<<( std::ostream& os, Truth_Table const& tt )
 /* bit-wise NOT operation */
 inline Truth_Table operator~( Truth_Table const& tt )
 {
-  return Truth_Table( tt.num_var, ~tt.bits );
+  std::vector<uint64_t> ret = tt.bits;
+  for(size_t i = 0; i < ret.size(); i++){
+      ret.at(i) = ~(tt.bits.at(i));
+  }
+  return Truth_Table( tt.num_var, ret );
 }
 
 /* bit-wise OR operation */
 inline Truth_Table operator|( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits | tt2.bits );
+  std::vector<uint64_t> ret = tt1.bits;
+  for(size_t i = 0; i < ret.size(); i++){
+      ret.at(i) |= tt2.bits.at(i);
+  }
+  return Truth_Table( tt1.num_var, ret );
 }
 
 /* bit-wise AND operation */
 inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits & tt2.bits );
+  std::vector<uint64_t> ret = tt1.bits;
+  for(size_t i = 0; i < ret.size(); i++){
+      ret.at(i) &= tt2.bits.at(i);
+  }
+  return Truth_Table( tt1.num_var, ret );
 }
 
 /* bit-wise XOR operation */
 inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
-  return Truth_Table( tt1.num_var, tt1.bits ^ tt2.bits );
+  std::vector<uint64_t> ret = tt1.bits;
+  for(size_t i = 0; i < ret.size(); i++){
+      ret.at(i) ^= tt2.bits.at(i);
+  }
+  return Truth_Table( tt1.num_var, ret );
 }
 
 /* check if two truth_tables are the same */
@@ -167,13 +313,40 @@ inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
 inline Truth_Table Truth_Table::positive_cofactor( uint8_t const var ) const
 {
   assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_pos[var] ) | ( ( bits & var_mask_pos[var] ) >> ( 1 << var ) ) );
+  bits_t ret;
+  bits_t mask = get_var_pos(num_var, var);
+  bits_t masked = bits;
+  bits_t shifted;
+  for(size_t i = 0; i < masked.size(); i++){
+      masked.at(i) &= mask.at(i);
+  }
+  shifted = masked;
+  shift_right_vec(&shifted, (1 << var));
+
+  for(size_t i = 0; i < bits.size(); i++){
+      ret.at(i) = masked.at(i) | shifted.at(i);
+  }
+
+  return Truth_Table( num_var, ret );
 }
 
 inline Truth_Table Truth_Table::negative_cofactor( uint8_t const var ) const
 {
   assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_neg[var] ) | ( ( bits & var_mask_neg[var] ) << ( 1 << var ) ) );
+  bits_t ret;
+  bits_t mask = get_var_neg(num_var, var);
+  bits_t masked = bits;
+  bits_t shifted;
+  for(size_t i = 0; i < masked.size(); i++){
+      masked.at(i) &= mask.at(i);
+  }
+  shifted = masked;
+  shift_left_vec(&shifted, (1 << var));
+
+  for(size_t i = 0; i < bits.size(); i++){
+      ret.at(i) = masked.at(i) | shifted.at(i);
+  }
+  return Truth_Table( num_var, ret );
 }
 
 inline Truth_Table Truth_Table::derivative( uint8_t const var ) const
@@ -197,6 +370,6 @@ inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
-  assert ( num_var <= 6u && var < num_var );
-  return Truth_Table( num_var, polarity ? var_mask_pos[var] : var_mask_neg[var] );
+  assert (var < num_var );
+  return Truth_Table( num_var, polarity ? get_var_pos(num_var, var) : get_var_neg(num_var, var) );
 }
