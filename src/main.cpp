@@ -7,7 +7,7 @@
 
 using namespace std;
 
-bool check( Truth_Table const& tt, string const& ans )
+bool  check( Truth_Table const& tt, string const& ans )
 {
   Truth_Table test = Truth_Table(ans);
   cout << "  checking function correctness";
@@ -170,7 +170,7 @@ int main()
     cout << "  checking BDD size (living nodes)";
     passed &= checkEQ( bdd.num_nodes(), 6 );
   }
-/*
+
   {
     cout << "test 06: more than 6 variables & multiple POs" << endl;
     BDD bdd( 10 );
@@ -184,7 +184,7 @@ int main()
     auto const x7 = bdd.ref( bdd.literal( 7 ) );
     auto const x8 = bdd.ref( bdd.literal( 8 ) );
     auto const x9 = bdd.ref( bdd.literal( 9 ) );
-
+    std::cout << "x0 --" << bdd.get_tt(x0) << std::endl;
     auto const f1 = bdd.ref( bdd.OR( x0, x9 ) );
 
     auto const g1 = bdd.ref( bdd.AND( x6, bdd.NOT( x4 ) ) );
@@ -213,7 +213,7 @@ int main()
     cout << "  checking BDD size (living nodes)";
     passed &= checkEQ( bdd.num_nodes(), 5 );
   }
-*/
+/*
   {
     cout << "test 07: computed table for XOR" << endl;
     BDD bdd( 4 );
@@ -245,23 +245,33 @@ int main()
 
   {
     cout << "test 08: computed table for ITE" << endl;
+    cout << "0" << endl;
     BDD bdd( 3 );
+    cout << "1" << endl;
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    cout << "2" << endl;
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    cout << "3" << endl;
     auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    cout << "4" << endl;
 
     auto const f1 = bdd.ref( bdd.ITE( x1, x2, x0 ) );
+    cout << "5" << endl;
     auto const f2 = bdd.ref( bdd.ITE( bdd.NOT( x1 ), x0, x2 ) );
+    cout << "6" << endl;
     bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 );
+    cout << "7" << endl;
 
     auto const tt1 = bdd.get_tt( f1 );
+    cout << "8" << endl;
+
     passed &= check( tt1, "11100010" );
     auto const tt2 = bdd.get_tt( f2 );
     passed &= check( tt2, "11100010" );
     cout << "  checking number of computation";
     passed &= checkLE( bdd.num_invoke(), 10 );
   }
-
+*/
   if ( passed )
   {
     cout << endl << "All tests passed, congrats!" << endl;
