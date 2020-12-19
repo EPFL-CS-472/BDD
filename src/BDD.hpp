@@ -66,6 +66,10 @@ struct hash<tuple<uint32_t, uint32_t, uint32_t>>
 class BDD
 {
 public:
+  /* Student comment
+   * ---------------
+   * Taken from the "hint" branch
+   * */
   using signal_t = uint32_t;
   /* A signal represents an edge pointing to a node.
    * The first 31 bits store the index of the node,
@@ -76,29 +80,22 @@ public:
   /* Declare `var_t` as an alias for an unsigned integer.
    * This datatype will be used for representing variables. */
 
-  using ct_t = std::unordered_map<std::tuple<signal_t, signal_t>, signal_t>;
-
 private:
   using index_t = uint32_t;
   /* Declare `index_t` as an alias for an unsigned integer.
    * This is just for easier understanding of the code.
    * This datatype will be used for node indices. */
 
+    /* Student comment
+     * ---------------
+     * Taken from the "hint" branch
+     * */
   struct Node
   {
     var_t v; /* corresponding variable */
     signal_t T; /* signal of THEN child (should not be complemented) */
     signal_t E; /* signal of ELSE child */
   };
-  struct VectorHasher {
-        int operator()(const std::vector<signal_t> &V) const {
-            int hash = V.size();
-            for(auto &i : V) {
-                hash ^= i + 0x9e3779b9 ;
-            }
-            return hash;
-        }
-    };
 
   inline signal_t make_signal( index_t index, bool complement = false ) const
   {
@@ -159,7 +156,15 @@ public:
       return T;
     }
 
-    bool output_neg = is_complemented(T); /* TODO */
+    /* Student comment
+     * ---------------
+     * To keep a CCE representation of the BDD, if the THEN
+     * edge if complemented, we :
+     *    - complement the parent Node --> output_neg is set to True
+     *    - complement the Edge signal
+     *    - "de-complement" the Then signal
+     * */
+    bool output_neg = is_complemented(T);
     if(output_neg){
         T ^= 0x1;
         E ^= 0x1;
@@ -195,49 +200,45 @@ public:
   /**********************************************************/
   signal_t ref( signal_t f )
   {
+    /* Student comment
+    * ---------------
+    * Simply increment the number of references for this Node
+    * */
     refs.at(get_index(f))++;
     return f;
   }
 
   void deref( signal_t f )
   {
+      /* Student comment
+      * ---------------
+      * Decrement number of references to the Node and ..
+      * */
       refs.at(get_index(f))--;
+      /*
+       * .. for both its descendants, decrease their reference count as well
+       * if f is now dead
+       */
       if(! refs.at(get_index(f))){
           deref(nodes.at(get_index(f)).T);
           deref(nodes.at(get_index(f)).E);
       }
   }
 
-  signal_t lookup_computed_table(signal_t f, signal_t g, ct_t * table)
-    {
-        signal_t flip = 0x0;
-
-        if(f > g)
-        {
-            signal_t temp = f;
-            f = g; g = temp;
-        }
-
-        if(table == &computed_table_XOR){
-            if(is_complemented(f)){
-                f ^= 0x1;
-                flip ^= 0x1;
-            }
-            if(is_complemented(g)){
-                g ^= 0x1;
-                flip ^= 0x1;
-            }
-        }
-        auto ret = table->find(std::make_tuple(f, g));
-        if(ret != table->end())
-            return ret->second ^ flip;
-        else
-        {
-            return 0xffffffff;
-        }
-    }
-
-void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
+  /* Student comment
+   * ---------------
+   * This function is use by OR, AND and XOR for insert computed results in their respective Computed Table (CT).
+   * To avoid equivalent entries, we order F and G in increasing order before insertion.
+   *
+   * For XOR, as equivalency can also depend on the sign (XOR(a,b) == XOR(~a,~b) == ~XOR(~a,b) == ~XOR(a,~b),
+   * we only store uncomplemented edges and invert the result if needed.
+   *
+   * Takes : F, G -> op operands, ret -> op result, table -> pointer to op computed table.
+   *
+   * Returns : Nothing, updates CT internally.
+   */
+void computed_table_insert(signal_t f, signal_t g, signal_t ret,
+                           std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> * table)
 {
     if(f > g)
     {
@@ -257,6 +258,49 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     (*table)[std::make_tuple(f, g)] = ret;
 }
 
+/* Student comment
+ * ---------------
+ * This function is use by OR, AND and XOR for lookup in their respective Computed Table (CT).
+ *
+ * Takes : F, G -> op operands, table -> pointer to op computed table.
+ *
+ * Returns : result of op(F,G) if it exists in the CT, 0xffffffff if not (reserved invalid value)
+ */
+signal_t lookup_computed_table(signal_t f, signal_t g,
+                               std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> * table)
+  {
+      // Flip flag for XOR lookup and result
+      signal_t flip = 0x0;
+      // If F > G, swap them
+      if(f > g)
+      {
+          signal_t temp = f;
+          f = g; g = temp;
+      }
+
+      if(table == &computed_table_XOR){
+          // If F is complemented, flip it and flip result
+          if(is_complemented(f)){
+              f ^= 0x1;
+              flip ^= 0x1;
+          }
+          // If G is complemented, flip it and flip result
+          if(is_complemented(g)){
+              g ^= 0x1;
+              flip ^= 0x1;
+          }
+      }
+      auto ret = table->find(std::make_tuple(f, g));
+      if(ret != table->end())
+          return ret->second ^ flip;
+      else
+      {
+          // Value reserved as invalid
+          return 0xffffffff;
+      }
+  }
+
+
   /**********************************************************/
   /********************* BDD Operations *********************/
   /**********************************************************/
@@ -264,12 +308,20 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
   /* Compute ~f */
   signal_t NOT( signal_t f )
   {
+    /* Student comment
+    * ---------------
+    * Simply toggle the complement bit to invert the Node
+    */
     return f ^ 0x1;
   }
 
   /* Compute f ^ g */
   signal_t XOR( signal_t f, signal_t g )
   {
+    /* Student comment
+    * ---------------
+    * First, look if result exists in CT
+    */
     signal_t ret = lookup_computed_table(f, g, &computed_table_XOR);
     if(ret < 0xffffffff)
         return ret;
@@ -310,6 +362,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     {
       x = F.v;
       f0 = F.E;
+      /* Student comment
+      * ---------------
+      * If operand is complemented, invert its descendant before discarding the parent
+      */
       f0 = is_complemented(f) ? NOT(F.E) : F.E;
       f1 = is_complemented(f) ? NOT(F.T) : F.T;
       g0 = g1 = g;
@@ -334,6 +390,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     signal_t const r0 = XOR( f0, g0 );
     signal_t const r1 = XOR( f1, g1 );
     signal_t r = unique( x, r1, r0 );
+    /* Student comment
+    * ---------------
+    * Insert result in the CT
+    */
     computed_table_insert(f, g, r, &computed_table_XOR);
     return r;
   }
@@ -341,6 +401,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
   /* Compute f & g */
   signal_t AND( signal_t f, signal_t g )
   {
+    /* Student comment
+    * ---------------
+    * First, look if result exists in CT
+    */
     auto ret = lookup_computed_table(f, g, &computed_table_AND);
     if(ret < 0xffffffff)
         return ret;
@@ -371,6 +435,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
+      /* Student comment
+      * ---------------
+      * If operand is complemented, invert its descendant before discarding the parent
+      */
       f0 = is_complemented(f) ? NOT(F.E) : F.E;
       f1 = is_complemented(f) ? NOT(F.T) : F.T;
       g0 = g1 = g;
@@ -394,6 +462,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     signal_t const r0 = AND( f0, g0 );
     signal_t const r1 = AND( f1, g1 );
     signal_t r = unique( x, r1, r0 );
+    /* Student comment
+    * ---------------
+    * Insert result in the CT
+    */
     computed_table_insert(f, g, r, &computed_table_AND);
     return r;
   }
@@ -401,6 +473,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
   /* Compute f | g */
   signal_t OR( signal_t f, signal_t g )
   {
+    /* Student comment
+    * ---------------
+    * First, look if result exists in CT
+    */
     auto ret = lookup_computed_table(f, g, &computed_table_OR);
     if(ret < 0xffffffff)
         return ret;
@@ -431,6 +507,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
+      /* Student comment
+      * ---------------
+      * If operand is complemented, invert its descendant before discarding the parent
+      */
       f0 = is_complemented(f) ? NOT(F.E) : F.E;
       f1 = is_complemented(f) ? NOT(F.T) : F.T;
 
@@ -455,6 +535,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     signal_t const r0 = OR( f0, g0 );
     signal_t const r1 = OR( f1, g1 );
     signal_t r = unique( x, r1, r0 );
+    /* Student comment
+    * ---------------
+    * Insert result in the CT
+    */
     computed_table_insert(f, g, r, &computed_table_OR);
     return r;
   }
@@ -462,9 +546,20 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
   /* Compute ITE(f, g, h), i.e., f ? g : h */
   signal_t ITE( signal_t f, signal_t g, signal_t h )
   {
+    /* Student comment
+    * ---------------
+    * First, look if result exists in CT
+    *
+    * For ITE, we test the different possibilities directly in the function
+    * as there are only two equivalent possibilities : ITE(F,G,H) == ITE(~F, H, G)
+    */
     auto ret = computed_table_ITE.find(std::make_tuple(f, g, h));
     if(ret != computed_table_ITE.end())
         return ret->second;
+    /* Student comment
+    * ---------------
+    * Test if (~F, H, G) is in the CT
+    */
     ret = computed_table_ITE.find(std::make_tuple(f ^ 0x1, h, g));
     if(ret != computed_table_ITE.end())
         return ret->second;
@@ -493,6 +588,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
     {
       x = F.v;
+      /* Student comment
+      * ---------------
+      * If operand is complemented, invert its descendant before discarding the parent
+      */
       f0 = is_complemented(f) ? NOT(F.E) : F.E;
       f1 = is_complemented(f) ? NOT(F.T) : F.T;
 
@@ -550,6 +649,10 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     signal_t const r0 = ITE( f0, g0, h0 );
     signal_t const r1 = ITE( f1, g1, h1 );
     signal_t r = unique( x, r1, r0 );
+    /* Student comment
+    * ---------------
+    * Insert result in the CT
+    */
     computed_table_ITE[std::make_tuple(f, g, h)] =  r;
     return r;
   }
