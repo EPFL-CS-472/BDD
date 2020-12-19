@@ -181,6 +181,26 @@ public:
   signal_t XOR(signal_t f, signal_t g) {
     ++num_invoke_xor;
 
+    /* trivial cases */
+    if (f == g) {
+      return constant(false);
+    }
+    if (f == constant(false)) {
+      return g;
+    }
+    if (g == constant(false)) {
+      return f;
+    }
+    if (f == constant(true)) {
+      return NOT(g);
+    }
+    if (g == constant(true)) {
+      return NOT(f);
+    }
+    if (f == NOT(g)) {
+      return constant(true);
+    }
+
     /* we use the commutativity and the property f ^ g == (~f) ^ (~g)
        to have a single key for multiple equivalent computation in the
        cache :
@@ -210,26 +230,6 @@ public:
 
     Node const& F = get_node(f);
     Node const& G = get_node(g);
-
-    /* trivial cases */
-    if (f == g) {
-      return constant(false);
-    }
-    if (f == constant(false)) {
-      return g;
-    }
-    if (g == constant(false)) {
-      return f;
-    }
-    if (f == constant(true)) {
-      return NOT(g);
-    }
-    if (g == constant(true)) {
-      return NOT(f);
-    }
-    if (f == NOT(g)) {
-      return constant(true);
-    }
 
     var_t x;
     signal_t f0, f1, g0, g1;
@@ -281,6 +281,20 @@ public:
   signal_t AND(signal_t f, signal_t g) {
     ++num_invoke_and;
 
+    /* trivial cases */
+    if (f == constant(false) || g == constant(false)) {
+      return constant(false);
+    }
+    if (f == constant(true)) {
+      return g;
+    }
+    if (g == constant(true)) {
+      return f;
+    }
+    if (f == g) {
+      return f;
+    }
+
     /* for simplicity in the cache we want the index of f to be
        smaller that the index of g */
     if (get_index(f) >= get_index(g)) {
@@ -307,20 +321,6 @@ public:
     /* we did not found an answer in the cache */
     Node const& F = get_node(f);
     Node const& G = get_node(g);
-
-    /* trivial cases */
-    if (f == constant(false) || g == constant(false)) {
-      return constant(false);
-    }
-    if (f == constant(true)) {
-      return g;
-    }
-    if (g == constant(true)) {
-      return f;
-    }
-    if (f == g) {
-      return f;
-    }
 
     var_t x;
     signal_t f0, f1, g0, g1;
@@ -377,6 +377,20 @@ public:
   signal_t OR(signal_t f, signal_t g) {
     ++num_invoke_or;
 
+    /* trivial cases */
+    if (f == constant(true) || g == constant(true)) {
+      return constant(true);
+    }
+    if (f == constant(false)) {
+      return g;
+    }
+    if (g == constant(false)) {
+      return f;
+    }
+    if (f == g) {
+      return f;
+    }
+
     /* for simplicity in the cache we want the index of f to be
        smaller that the index of g */
     if (get_index(f) >= get_index(g)) {
@@ -403,20 +417,6 @@ public:
     /* we did not found an answer in the cache */
     Node const& F = get_node(f);
     Node const& G = get_node(g);
-
-    /* trivial cases */
-    if (f == constant(true) || g == constant(true)) {
-      return constant(true);
-    }
-    if (f == constant(false)) {
-      return g;
-    }
-    if (g == constant(false)) {
-      return f;
-    }
-    if (f == g) {
-      return f;
-    }
 
     var_t x;
     signal_t f0, f1, g0, g1;
@@ -473,6 +473,17 @@ public:
   signal_t ITE(signal_t f, signal_t g, signal_t h) {
     ++num_invoke_ite;
 
+    /* trivial cases */
+    if (f == constant(true)) {
+      return g;
+    }
+    if (f == constant(false)) {
+      return h;
+    }
+    if (g == h) {
+      return g;
+    }
+
     /* for simplicity of the cache, we want f to not be complemented */
     if (is_complemented(f)) {
       f = NOT(f);
@@ -493,17 +504,6 @@ public:
     Node const& F = get_node(f);
     Node const& G = get_node(g);
     Node const& H = get_node(h);
-
-    /* trivial cases */
-    if (f == constant(true)) {
-      return g;
-    }
-    if (f == constant(false)) {
-      return h;
-    }
-    if (g == h) {
-      return g;
-    }
 
     var_t x;
     signal_t f0, f1, g0, g1, h0, h1;
