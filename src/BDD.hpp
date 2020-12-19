@@ -318,6 +318,7 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
   /* Compute f ^ g */
   signal_t XOR( signal_t f, signal_t g )
   {
+      ++num_invoke_xor;
     /* Student comment
     * ---------------
     * First, look if result exists in CT
@@ -326,7 +327,6 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
     if(ret < 0xffffffff)
         return ret;
 
-    ++num_invoke_xor;
     Node const& F = get_node( f );
     Node const& G = get_node( g );
 
@@ -401,6 +401,7 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
   /* Compute f & g */
   signal_t AND( signal_t f, signal_t g )
   {
+      ++num_invoke_and;
     /* Student comment
     * ---------------
     * First, look if result exists in CT
@@ -408,7 +409,6 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
     auto ret = lookup_computed_table(f, g, &computed_table_AND);
     if(ret < 0xffffffff)
         return ret;
-    ++num_invoke_and;
     Node const& F = get_node( f );
     Node const& G = get_node( g );
 
@@ -473,6 +473,7 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
   /* Compute f | g */
   signal_t OR( signal_t f, signal_t g )
   {
+      ++num_invoke_or;
     /* Student comment
     * ---------------
     * First, look if result exists in CT
@@ -480,7 +481,6 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
     auto ret = lookup_computed_table(f, g, &computed_table_OR);
     if(ret < 0xffffffff)
         return ret;
-    ++num_invoke_or;
     Node const& F = get_node( f );
     Node const& G = get_node( g );
 
@@ -546,6 +546,7 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
   /* Compute ITE(f, g, h), i.e., f ? g : h */
   signal_t ITE( signal_t f, signal_t g, signal_t h )
   {
+      ++num_invoke_ite;
     /* Student comment
     * ---------------
     * First, look if result exists in CT
@@ -564,7 +565,6 @@ signal_t lookup_computed_table(signal_t f, signal_t g,
     if(ret != computed_table_ITE.end())
         return ret->second;
 
-    ++num_invoke_ite;
     Node const& F = get_node( f );
     Node const& G = get_node( g );
     Node const& H = get_node( h );
