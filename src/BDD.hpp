@@ -91,6 +91,8 @@ public:
      * Both of their children point to themselves, just for convenient representation.
      *
      * `unique_table` is initialized with `num_vars` empty maps. */
+     for(int i=0; i<ops::num_ops; i++)//Initialize the computed_table
+     computed_tables.emplace_back(std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t>());
   }
   
   //Referencing function
@@ -248,8 +250,8 @@ public:
     else look2 = g;
     
     //Cache lookup
-    const auto it = computed_tables.at(op).find(order(look1, look2));	//order for Commutation
-    if(it != computed_tables.at(op).end()){
+    const auto it = computed_tables[op].find(order(look1, look2));	//order for Commutation
+    if(it != computed_tables[op].end()){
     	return (negf^negg) ? NOT(it->second) : it->second;
     }
 
@@ -303,7 +305,7 @@ public:
     index_t const r0 = ref(XOR( f0, g0 ));
     index_t const r1 = ref(XOR( f1, g1 ));
     index_t ret = unique( x, r1, r0 );
-    computed_tables.at(op)[order(look1, look2)] = (negf^negg) ? NOT(ret) : ret;
+    computed_tables[op][order(look1, look2)] = (negf^negg) ? NOT(ret) : ret;
     deref(r0);
     deref(r1);
     return ret;
@@ -345,8 +347,8 @@ public:
     look2 = NOT(g);
 
     //Cache lookup
-    const auto it = computed_tables.at(op).find(order(look1, look2));	//Order for Commutation
-    if(it != computed_tables.at(op).end()){
+    const auto it = computed_tables[op].find(order(look1, look2));	//Order for Commutation
+    if(it != computed_tables[op].end()){
     	return NOT(it->second);
     }
 
@@ -400,7 +402,7 @@ public:
     index_t const r0 = ref(AND( f0, g0 ));
     index_t const r1 = ref(AND( f1, g1 ));
     index_t ret = unique( x, r1, r0 );
-    computed_tables.at(op)[order(look1, look2)] = NOT(ret);
+    computed_tables[op][order(look1, look2)] = NOT(ret);
     deref(r0);
     deref(r1);
     return ret;
@@ -437,9 +439,9 @@ public:
     }
     
     //Cache lookup
-    const auto it = computed_tables.at(op).find(order(f, g));	//No need to manage equivalences here, it's already done in the AND part
-    if(it != computed_tables.at(op).end()){
-    	return it->second;	//TODO resurrection ?
+    const auto it = computed_tables[op].find(order(f, g));	//No need to manage equivalences here, it's already done in the AND part
+    if(it != computed_tables[op].end()){
+    	return it->second;
     }
 
     Node const& F = nodes[fb];
@@ -492,7 +494,7 @@ public:
     index_t const r0 = ref(OR( f0, g0 ));
     index_t const r1 = ref(OR( f1, g1 ));
     index_t ret = unique( x, r1, r0 );
-    computed_tables.at(op)[order(f, g)] = ret;
+    computed_tables[op][order(f, g)] = ret;
     deref(r0);
     deref(r1);
     return ret;
@@ -554,8 +556,8 @@ public:
     }
     
     //Cache lookup
-    const auto it = computed_tables.at(op).find({look1, look2, look3});
-    if(it != computed_tables.at(op).end()){
+    const auto it = computed_tables[op].find({look1, look2, look3});
+    if(it != computed_tables[op].end()){
     	return (look3 & 0x1) ? NOT(it->second) : it->second;
     }
 
@@ -653,7 +655,7 @@ public:
     index_t const r0 = ref(ITE( f0, g0, h0 ));
     index_t const r1 = ref(ITE( f1, g1, h1 ));
     index_t ret = unique( x, r1, r0 );
-    computed_tables.at(op)[{look1, look2, look3}] = (look3 & 0x1) ? NOT(ret) : ret;
+    computed_tables[op][{look1, look2, look3}] = (look3 & 0x1) ? NOT(ret) : ret;
     deref(r0);
     deref(r1);
     return ret;
@@ -730,10 +732,10 @@ public:
   void garbage_collector(){
   	//First purge the computed cache
   	for(auto a = 0; a < ops::num_ops; a++){
-  		for(auto it = computed_tables.at(a).begin(); it != computed_tables.at(a).end();){
+  		for(auto it = computed_tables[a].begin(); it != computed_tables[a].end();){
   			auto f = std::get<0>(it -> first);
   			auto g = std::get<1>(it -> first);
-  			if(is_dead(it->second) || is_dead(f) || is_dead(g)) it = computed_tables.at(a).erase(it); //If any of the nodes is dead, remove the table entry
+  			if(is_dead(it->second) || is_dead(f) || is_dead(g)) it = computed_tables[a].erase(it); //If any of the nodes is dead, remove the table entry
   			else it++;
   		}
   	}
@@ -832,9 +834,8 @@ private:
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
-   std::array<std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t>, ops::num_ops> computed_tables;
+   std::vector<std::unordered_map<std::tuple<index_t, index_t, index_t>, index_t>> computed_tables;
    const int threshold_nodes_size = 1; //Threshold over which we start looking for garbage collection
-
   /* statistics */
   uint64_t num_invoke_not, num_invoke_and, num_invoke_or, num_invoke_xor, num_invoke_ite;
 };
