@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <bitset> // DEBUG
+
 static const uint64_t full = 0xffffffffffffffff;
 
 /* masks used to filter out unused bits */
@@ -38,7 +39,6 @@ static const uint64_t var_mask_neg[] = {
 inline std::vector<uint64_t> get_var_pos(uint8_t numvar, uint8_t var){
     assert(var < numvar);
     std::vector<uint64_t> ret;
- //   std::cout << "get_var_pos numvar is " <<  (uint32_t)  numvar << "  var is  " << (uint32_t) var << std::endl;
     if(var < 6){
         ret.push_back(var_mask_pos[var]);
         for(size_t i = 1; i < (1 << (numvar - 6)) && numvar > 6 ; i++)
@@ -55,14 +55,12 @@ inline std::vector<uint64_t> get_var_pos(uint8_t numvar, uint8_t var){
     }
     if(numvar < 6)
         ret.at(0) &= length_mask[numvar];
-  //  std::cout << "get_var_pos ret size is " <<  ret.size() <<  std::endl;
 
     return ret;
 }
 
 inline std::vector<uint64_t> get_var_neg(uint8_t numvar, uint8_t var){
     assert(var < numvar);
-  // std::cout << "get_var_neg numvar is " <<  (uint32_t)  numvar << "  var is  " << (uint32_t) var << std::endl;
 
     std::vector<uint64_t> ret;
     if(var < 6){
@@ -71,8 +69,6 @@ inline std::vector<uint64_t> get_var_neg(uint8_t numvar, uint8_t var){
             ret.push_back(var_mask_neg[var]);
     }else{
         uint8_t n = 1 << (var - 6);
-   //     std::cout << "get_var_neg n is " <<  (uint32_t)  n << std::endl;
-
         for(size_t i = n; i < numvar - 1; i++){
             for(size_t j = 0; j < n; j++)
                 ret.push_back(full);
@@ -80,9 +76,9 @@ inline std::vector<uint64_t> get_var_neg(uint8_t numvar, uint8_t var){
                 ret.push_back(0x0);
         }
     }
+
     if(numvar < 6)
         ret.at(0) &= length_mask[numvar];
- //   std::cout << "get_var_neg ret size is " <<  ret.size() <<  std::endl;
 
     return ret;
 }
@@ -160,23 +156,12 @@ inline uint8_t log_two( const uint8_t n )
   return ret;
 }
 
-inline uint8_t get_bits_index( uint8_t pos)
-{
-    uint8_t ret = 0;
-    while(pos > 64u){
-        pos -= 64u;
-        ret++;
-    }
-    return ret;
-}
-
 inline std::vector<uint64_t> build_bits(uint8_t numvars){
     std::vector<uint64_t> ret;
     ret.push_back(0u);
     if(numvars > 6)
     {
         uint32_t num_table = 1 << (numvars - 6);
-  //      std::cout << "NUM TABLE IS " << num_table << std::endl;
         for(size_t i = 1; i < num_table; i++){
             ret.push_back(0u);
         }
@@ -192,29 +177,17 @@ public:
   Truth_Table( uint8_t num_var )
       : num_var( num_var ), bits( build_bits(num_var) )
   {
-  //  assert( num_var <= 6u );
-   //   std::cout << "size is " << (uint32_t) num_var     << "---- nothing is " << bits.at(0) << std::endl;
-   //   std::cout << "SIZE IS nothing  " << bits.size() << std::endl;
-
   }
 
   Truth_Table( uint8_t num_var, bits_t bits_v )
       : num_var( num_var ), bits( bits_v )
   {
- //   assert( num_var <= log_two(bits_v.size()) + 6 );
-   //   std::cout << "size is " << (uint32_t) num_var << "---- vect is " << bits.at(0) << std::endl;
-   //   std::cout << "---- input is " << bits_v.at(0) << std::endl;
-  //    std::cout << "SIZE IS vect " << bits.size() << std::endl;
-  //    std::cout << "SIZE IS input vect " << bits_v.size() << std::endl;
   }
 
   Truth_Table( uint8_t num_var, uint64_t bits )
    : num_var( num_var ), bits( {bits & length_mask[num_var]} )
   {
     assert( num_var <= 6u );
-  //  std::cout << "size is " << (uint32_t) num_var << "---- uint64 is " << this->bits.at(0) << std::endl;
-  //  std::cout << "SIZE IS uint " << this->bits.size() << std::endl;
-
   }
 
   Truth_Table( const std::string str )
@@ -236,16 +209,12 @@ public:
         assert( str[i] == '0' );
       }
     }
- //   std::cout << "size is " << (uint32_t) num_var << "---- str is " << bits.at(0) << std::endl;
-//    std::cout << "SIZE IS str " << bits.size() << std::endl;
-
   }
 
   bool get_bit( uint8_t const position ) const
   {
     assert( position < ( 1 << num_var ) );
     uint8_t index = position >> 6u;
- //   std::cout << "SIZE IS getbit " << this->bits.size() << std::endl;
     return ( ( bits.at(index) >> (position - (index*64))) & 0x1 );
   }
 
@@ -253,11 +222,7 @@ public:
   {
     assert( position < ( 1 << num_var ) );
     uint8_t index = position >> 6u;
-  //  std::cout << "SIZE IS setbit " << bits.size() << std::endl;
-
     bits.at(index) |= ( uint64_t( 1 ) << (position - (index*64)) );
-
-
   }
 
   uint8_t n_var() const
@@ -293,8 +258,8 @@ inline Truth_Table operator~( Truth_Table const& tt )
   for(size_t i = 0; i < tt.bits.size(); i++){
       ret.push_back(~(tt.bits.at(i)));
   }
- // std::cout << "---- RET is " << ret.at(0) << std::endl;
-
+  if(tt.num_var < 6)
+      ret.at(0) &= length_mask[tt.num_var];
   return Truth_Table( tt.num_var, ret );
 }
 
@@ -325,8 +290,6 @@ inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
 inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
- // std::cout << "---- tt1 is " << tt1.bits.at(0) << "  tt2 is " << tt2.bits.at(0) << std::endl;
-
   std::vector<uint64_t> ret;
   for(size_t i = 0; i < tt1.bits.size(); i++){
       ret.push_back(tt1.bits.at(i) ^ tt2.bits.at(i));
@@ -366,6 +329,7 @@ inline Truth_Table Truth_Table::positive_cofactor( uint8_t const var ) const
       masked.push_back( bits.at(i) & mask.at(i));
       shifted.push_back( bits.at(i) & mask.at(i));
   }
+
   shift_right_vec(&shifted, (1 << var));
 
   for(size_t i = 0; i < bits.size(); i++){
@@ -386,6 +350,7 @@ inline Truth_Table Truth_Table::negative_cofactor( uint8_t const var ) const
       masked.push_back( bits.at(i) & mask.at(i));
       shifted.push_back( bits.at(i) & mask.at(i));
   }
+
   shift_left_vec(&shifted, (1 << var));
 
   for(size_t i = 0; i < bits.size(); i++){
@@ -416,6 +381,5 @@ inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
   assert (var < num_var );
-//  std::cout << "create tt numvar " << (uint32_t) num_var << "  var  " << (uint32_t) var << std::endl;
   return Truth_Table( num_var, polarity ? get_var_pos(num_var, var) : get_var_neg(num_var, var) );
 }

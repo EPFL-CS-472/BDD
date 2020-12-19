@@ -107,8 +107,6 @@ private:
 
   inline index_t get_index( signal_t signal ) const
   {
-   //   std::cout << "Signal is " << signal << std::endl;
-   //   std::cout << "Node size is " << nodes.size() << std::endl;
     assert( ( signal >> 1 ) < nodes.size() );
     return signal >> 1;
   }
@@ -161,7 +159,11 @@ public:
       return T;
     }
 
-    bool output_neg = false; /* TODO */
+    bool output_neg = is_complemented(T); /* TODO */
+    if(output_neg){
+        T ^= 0x1;
+        E ^= 0x1;
+    }
 
     /* Look up in the unique table. */
     const auto it = unique_table[var].find( {T, E} );
@@ -308,9 +310,8 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     {
       x = F.v;
       f0 = F.E;
-      f1 = F.T;f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
-
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
       g0 = g1 = g;
     }
     else if ( G.v < F.v ) /* G is on top of F */
@@ -318,16 +319,16 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
       x = G.v;
       f0 = f1 = f;
 
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
     else /* F and G are at the same level */
     {
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
 
     signal_t const r0 = XOR( f0, g0 );
@@ -369,28 +370,25 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     signal_t f0, f1, g0, g1;
     if ( F.v < G.v ) /* F is on top of G */
     {
-   //     std::cout << "coucou if" << std::endl;
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
       g0 = g1 = g;
     }
     else if ( G.v < F.v ) /* G is on top of F */
     {
-   //   std::cout << "coucou else if" << std::endl;
       x = G.v;
       f0 = f1 = f;
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
     else /* F and G are at the same level */
     {
-    //  std::cout << "coucou else" << std::endl;
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
 
     signal_t const r0 = AND( f0, g0 );
@@ -433,8 +431,8 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     if ( F.v < G.v ) /* F is on top of G */
     {
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
 
       g0 = g1 = g;
     }
@@ -442,16 +440,16 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     {
       x = G.v;
       f0 = f1 = f;
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
     else /* F and G are at the same level */
     {
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
-      g0 = is_complemented(g) ? G.T : G.E;
-      g1 = is_complemented(g) ? G.E : G.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
+      g0 = is_complemented(g) ? NOT(G.E) : G.E;
+      g1 = is_complemented(g) ? NOT(G.T) : G.T;
     }
 
     signal_t const r0 = OR( f0, g0 );
@@ -495,13 +493,15 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
     if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
     {
       x = F.v;
-      f0 = is_complemented(f) ? F.T : F.E;
-      f1 = is_complemented(f) ? F.E : F.T;
+      f0 = is_complemented(f) ? NOT(F.E) : F.E;
+      f1 = is_complemented(f) ? NOT(F.T) : F.T;
+
 
       if ( G.v == F.v )
       {
-          g0 = is_complemented(g) ? G.T : G.E;
-          g1 = is_complemented(g) ? G.E : G.T;
+
+          g0 = is_complemented(g) ? NOT(G.E) : G.E;
+          g1 = is_complemented(g) ? NOT(G.T) : G.T;
       }
       else
       {
@@ -509,8 +509,9 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
       }
       if ( H.v == F.v )
       {
-          h0 = is_complemented(h) ? H.T : H.E;
-          h1 = is_complemented(h) ? H.E : H.T;
+          h0 = is_complemented(h) ? NOT(H.E) : H.E;
+          h1 = is_complemented(h) ? NOT(H.T) : H.T;
+
       }
       else
       {
@@ -523,25 +524,26 @@ void computed_table_insert(signal_t f, signal_t g, signal_t ret, ct_t * table)
       if ( G.v < H.v )
       {
         x = G.v;
-        g0 = is_complemented(g) ? G.T : G.E;
-        g1 = is_complemented(g) ? G.E : G.T;
+
+        g0 = is_complemented(g) ? NOT(G.E) : G.E;
+        g1 = is_complemented(g) ? NOT(G.T) : G.T;
         h0 = h1 = h;
       }
       else if ( H.v < G.v )
       {
         x = H.v;
         g0 = g1 = g;
-        h0 = is_complemented(h) ? H.T : H.E;
-        h1 = is_complemented(h) ? H.E : H.T;
+        h0 = is_complemented(h) ? NOT(H.E) : H.E;
+        h1 = is_complemented(h) ? NOT(H.T) : H.T;
       }
       else /* G.v == H.v */
       {
         x = G.v;
 
-        g0 = is_complemented(g) ? G.T : G.E;
-        g1 = is_complemented(g) ? G.E : G.T;
-        h0 = is_complemented(h) ? H.T : H.E;
-        h1 = is_complemented(h) ? H.E : H.T;
+        g0 = is_complemented(g) ? NOT(G.E) : G.E;
+        g1 = is_complemented(g) ? NOT(G.T) : G.T;
+        h0 = is_complemented(h) ? NOT(H.E) : H.E;
+        h1 = is_complemented(h) ? NOT(H.T) : H.T;
       }
     }
 
@@ -693,7 +695,6 @@ private:
   std::vector<Node> nodes;
   std::vector<uint32_t> refs; /* The reference counts. Should always be the same size as `nodes`. */
   std::vector<std::unordered_map<std::pair<signal_t, signal_t>, index_t>> unique_table;
-  std::unordered_map<std::vector<signal_t>, signal_t, VectorHasher> computed_table;
 
   /* `unique_table` is a vector of `num_vars` maps storing the built nodes of each variable.
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
