@@ -5,9 +5,16 @@
 ]{todonotes}
 
 \usepackage{minted}
+\usepackage[acronym]{glossaries}
+
+\newacronym{bdd}{BDD}{Binary Decision Diagram}
+\newacronym{lsb}{LSB}{least Significant Bit}
+\newacronym{msb}{MSB}{Most Significant Bit}
+
+\newcommand{\inlineC}[1]{\mintinline{cpp}{#1}}
 
 \title{CS-472: Design Technologies for Integrated Systems : Final project}
-\subtitle{Extended Binary Decision Diagram Package: Pull request \#???}
+\subtitle{Extended Binary Decision Diagram Package: Pull request \#16}
 \author{Alexandre Pinazza}
 \email{alexandre.pinazza@epfl.ch}
 \affiliation{
@@ -20,13 +27,25 @@
 
 \begin{document}
 \maketitle
-\todo{Include pull request number}
 
 \section{Introduction}
-\todo{Write introduction}
+In this project, I extended the \acrfull{bdd} library we implemented in homework 6. Three extensions have been implemented :
+\begin{itemize}
+    \item Complemented edge
+    \item Operation cache
+    \item Node reference count
+\end{itemize}
 
 \section{Complemented edge}
-\todo{Write complemented edge}
+Complemented edge allows for smaller memory footprints as the same \acrshort{bdd} can new represent a function and its complement with the flip of a single bit.
+
+To represent a \acrshort{bdd}, we now need be able to store the index of the root node and if that node should be complemented or not. To that end, a \acrshort{bdd} is represented with the new type \inlineC{signal_t} which is an alias to \inlineC{uint32_t}. In those 32-bits, the single \acrfull{lsb} tells if the \acrshort{bdd} is complemented or not and the 31 \acrfull{msb} give the index of the root node in the node table. This implementation brings no memory overhead but it reduce the number of nodes we can stores. However, this would not be the biggest problem as the node table would occupy at least 24 GB of RAM ($12$ bytes/node $\cdot 2^{31}$ indexes).
+
+With this representation, the NOT operation is straight forward as we only need to complement the \acrshort{lsb} of the given signal.
+
+To still have a single canonical representation of the Boolean functions, we fixed that the then branch of each node should never be inverted and that we only have the constant 1 constant node, which is stored of index 0 of the node table. The constant 0 can be represented as the constant 1 complemented, so it would be represented by the \inlineC{signal_t} 1. To guarantee the condition on the then branch, the \inlineC{unique} function has been modified to check if the given then branch is complemented or not. If it is, it complements those two signals and also the returned one.
+
+
 
 \section{Operation cache}
 To avoid computing the same operation multiple time, we can use a cache that stores the result of each computations.
@@ -45,6 +64,10 @@ For commutative operations -- XOR, OR and AND -- the order of the parameters doe
 
 \section{Node reference count tracing}
 \todo{Write node reference count tracing}
+
+\section{Going further}
+
+\section{Conclusion}
 
 \listoftodos{}
 
