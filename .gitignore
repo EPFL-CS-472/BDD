@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+/.idea/deployment.xml
+/.idea/misc.xml
+/.idea/vcs.xml
+/.idea/workspace.xml
+/bdd_simple
+/bdd
