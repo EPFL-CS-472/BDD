@@ -150,7 +150,7 @@ public:
     }
     /*Wheter or not the edge should be marked as complemented or not.
     /*TODO: The edge going to the Node should be complemented if this Node has it Then branch going to cero (it is complemented)*/
-     bool output_neg = ( !T & 0 );
+     bool output_neg = ( not T & 0 );
     //bool output_neg = ( !T & 0x1 ); //Bit 32 is it 1 (complement) or 0?
     /*We want to keep the BDD canonical, so we applied the transformation)*/
     signal_t E_neg, T_neg;
@@ -242,12 +242,12 @@ public:
     /*Check if this computation has already been done before*/
     auto find = computed_table_XOR.find( std::make_tuple(f, g) );
     if( find != computed_table_XOR.end() ){
-      --num_invoke_xor;
+     // --num_invoke_xor;
         return find->second;
     }
     auto find2 = computed_table_XOR.find( std::make_tuple(g, f) );
     if( find2 != computed_table_XOR.end() ){
-      --num_invoke_xor;
+     // --num_invoke_xor;
         return find2->second;
     }
   
@@ -332,12 +332,12 @@ public:
     /*Check if this computation has already been done before*/
     auto find = computed_table_AND.find( std::make_tuple(f, g) );
     if( find != computed_table_AND.end() ){
-      --num_invoke_and;
+     // --num_invoke_and;
         return find->second;
     }
     auto find2 = computed_table_AND.find( std::make_tuple(g, f) );
     if( find2 != computed_table_AND.end() ){
-      --num_invoke_and;
+     // --num_invoke_and;
         return find2->second;
     }
 
@@ -413,12 +413,12 @@ public:
     auto key_typeb = std::make_tuple(g, f);
     auto find = computed_table_OR.find( key_typea );
     if( find != computed_table_OR.end() ){//if already computed, return it
-    --num_invoke_or;
+    //--num_invoke_or;
       return find->second;
     }
     auto find2 = computed_table_OR.find( key_typeb );
     if( find2 != computed_table_OR.end() ){//if already computed, return it
-    --num_invoke_or;
+    //--num_invoke_or;
       return find2->second;
     }
 
@@ -500,12 +500,12 @@ public:
 
    auto find = computed_table_ITE.find( key_typea );
    if( find != computed_table_ITE.end() ){
-     --num_invoke_ite;
+     //--num_invoke_ite;
       return find -> second;
     }
     auto find2 = computed_table_ITE.find( key_typeb );
     if( find2 != computed_table_ITE.end() ){
-      --num_invoke_ite;
+      //--num_invoke_ite;
       return find2 -> second;
     }
 

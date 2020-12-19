@@ -139,7 +139,7 @@ inline Truth_Table operator~( Truth_Table const& tt )
 {
   std::vector<bool> NOT;
   for (auto i = 0; i < tt.bits_v.size(); i++ ){
-    NOT.emplace_back( ~tt.bits_v[i] );
+    NOT.push_back( ~tt.bits_v[i] );
   }
   return Truth_Table( tt.num_var, NOT );
 }
@@ -150,7 +150,7 @@ inline Truth_Table operator|( Truth_Table const& tt1, Truth_Table const& tt2 )
   assert( tt1.num_var == tt2.num_var );
   std::vector<bool> OR;
   for (auto i = 0; i < tt1.bits; i++ ){
-    OR.emplace_back( tt1.bits_v[i] | tt1.bits_v[i]);
+    OR.push_back( tt1.bits_v[i] | tt1.bits_v[i]);
   }
   return Truth_Table( tt1.num_var, OR );
 }
@@ -161,7 +161,7 @@ inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
   assert( tt1.num_var == tt2.num_var );
     std::vector<bool> AND;
   for (auto i = 0; i < tt1.bits; i++ ){
-    AND.emplace_back( tt1.bits_v[i] & tt1.bits_v[i]);
+    AND.push_back( tt1.bits_v[i] & tt1.bits_v[i]);
   }
   return Truth_Table( tt1.num_var, AND );
 }
@@ -172,7 +172,7 @@ inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
   assert( tt1.num_var == tt2.num_var );
   std::vector<bool> XOR;
   for (auto i = 0; i < tt1.bits; i++ ){
-    XOR.emplace_back( tt1.bits_v[i] ^ tt1.bits_v[i]);
+    XOR.push_back( tt1.bits_v[i] ^ tt1.bits_v[i]);
   }
   return Truth_Table( tt1.num_var, XOR );
 }
