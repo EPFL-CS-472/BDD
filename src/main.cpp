@@ -231,6 +231,7 @@ int main()
     bdd.deref( h1 ); bdd.deref( h2 );
 
     bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 ); bdd.deref( x3 );
+
     
     auto const f = bdd.ref( bdd.XOR( g3, h3 ) );
     bdd.deref( g3 ); bdd.deref( h3 );
