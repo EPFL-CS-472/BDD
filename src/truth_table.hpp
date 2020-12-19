@@ -43,6 +43,7 @@ inline uint8_t power_two( const uint32_t n )
     case 16u: return 4u;
     case 32u: return 5u;
     case 64u: return 6u;
+    case 128u: return 7u;
     default: return 0u;
   }
 }
@@ -53,13 +54,13 @@ public:
   Truth_Table( uint8_t num_var )
    : num_var( num_var ), bits( 0u )
   {
-    assert( num_var <= 6u );
+    //assert( num_var <= 6u );
   }
 
   Truth_Table( uint8_t num_var, uint64_t bits )
    : num_var( num_var ), bits( bits & length_mask[num_var] )
   {
-    assert( num_var <= 6u );
+    //assert( num_var <= 6u );
   }
 
   Truth_Table( const std::string str )
@@ -197,6 +198,6 @@ inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
-  assert ( num_var <= 6u && var < num_var );
+  assert ( var < num_var );
   return Truth_Table( num_var, polarity ? var_mask_pos[var] : var_mask_neg[var] );
 }
