@@ -450,7 +450,7 @@ public:
   Truth_Table get_tt( index_t f ) const
   {
     assert( f < nodes.size() && "Make sure f exists." );
-    assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." );
+    assert( num_vars() <= 6 && "Truth_Table only supports functions of no greater than 6 variables." ); // Need to remove this
 
     if ( f == constant( false ) )
     {
