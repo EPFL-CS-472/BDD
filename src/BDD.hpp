@@ -851,7 +851,7 @@ private:
    * Each map maps from a pair of node indices (T, E) to a node index, if it exists.
    * See the implementation of `unique` for example usage. */
 
-  /* Computed tables for each operation type. */
+  /* Cache: computed tables for each operation type. */
   std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_AND;
   std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_OR;
   std::unordered_map<std::tuple<signal_t, signal_t>, signal_t> computed_table_XOR;

@@ -51,7 +51,7 @@ inline std::vector<uint64_t> length_mask(uint8_t const num_var)
   }
 }
 
-/* return masks used to get the bits where a certain variable is 1 */
+/* return masks used to get the bits when certain variable is 1 */
 inline std::vector<uint64_t> var_mask_pos(uint8_t const var, uint8_t const num_var) 
 {
   uint64_t size = 1u;
@@ -76,7 +76,7 @@ inline std::vector<uint64_t> var_mask_pos(uint8_t const var, uint8_t const num_v
   return mask;
 }
 
-/* returns masks used to get the bits where a certain variable is 0 */
+/* returns masks used to get the bits when certain variable is 0 */
 inline std::vector<uint64_t> var_mask_neg(uint8_t const var, uint64_t const num_var) 
 {
   uint64_t size = 1u;
