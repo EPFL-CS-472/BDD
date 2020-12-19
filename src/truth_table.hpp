@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include <cassert>
-#include <string>
 #include <vector>
 #include <cmath>
 
@@ -34,7 +33,7 @@ static const uint64_t var_mask_neg_table[] = {
   0x0000ffff0000ffff,
   0x00000000ffffffff};
 
-/* Returns mask used to filter out unused bits for a certain number of var */
+/* return masks used to filter out unused bits for a certain number of variables */
 inline std::vector<uint64_t> length_mask(uint8_t const num_var) 
 {
   uint64_t size = 1u;
@@ -52,7 +51,7 @@ inline std::vector<uint64_t> length_mask(uint8_t const num_var)
   }
 }
 
-/* Returns mask used to get the bits where a certain variable is 1 */
+/* return masks used to get the bits where a certain variable is 1 */
 inline std::vector<uint64_t> var_mask_pos(uint8_t const var, uint8_t const num_var) 
 {
   uint64_t size = 1u;
@@ -70,18 +69,14 @@ inline std::vector<uint64_t> var_mask_pos(uint8_t const var, uint8_t const num_v
   for (auto b = 0u; b < size; b += ones + zeroes) 
   {
     for (auto i = 0u; i < ones; i++) 
-    {
       mask.push_back(0u - 1);
-    }
     for (auto i = 0u; i < zeroes; i++) 
-    {
       mask.push_back(0u);
-    }
   }
   return mask;
 }
 
-/* Returns mask used to get the bits where a certain variable is 0 */
+/* returns masks used to get the bits where a certain variable is 0 */
 inline std::vector<uint64_t> var_mask_neg(uint8_t const var, uint64_t const num_var) 
 {
   uint64_t size = 1u;
@@ -99,13 +94,9 @@ inline std::vector<uint64_t> var_mask_neg(uint8_t const var, uint64_t const num_
   for (auto b = 0u; b < size; b += ones + zeroes) 
   {
     for (auto i = 0u; i < zeroes; i++) 
-    {
       mask.push_back(0u);
-    }
     for (auto i = 0u; i < ones; i++) 
-    {
       mask.push_back(0u - 1);
-    }
   }
   return mask;
 }
@@ -115,15 +106,11 @@ inline uint8_t power_two( const uint32_t n, uint8_t acc )
 {
     // 1 is the only odd number which is a power of 2 (2^0) 
     if (n == 1) 
-    {
       return acc; 
-    }
      
     // all other odd numbers, and 0, are not powers of 2
     else if (n % 2 != 0 || n == 0)
-    { 
       return 0u; 
-    }
      
     return power_two(n / 2, acc + 1); 
 }
@@ -215,9 +202,8 @@ inline Truth_Table operator~( Truth_Table const& tt )
 {
   std::vector<uint64_t> tt_bits(tt.bits.size(), 0u);
   for (auto i = 0u; i < tt.bits.size(); ++i) 
-  {
     tt_bits[i] = ~tt.bits[i];
-  }
+
   return Truth_Table( tt.num_var, tt_bits );
 }
 
@@ -226,9 +212,9 @@ inline Truth_Table operator|( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   assert( tt1.num_var == tt2.num_var );
   std::vector<uint64_t> tt_bits(tt1.bits.size(), 0u);
-  for (auto i = 0u; i < tt1.bits.size(); ++i) {
+  for (auto i = 0u; i < tt1.bits.size(); ++i)
     tt_bits[i] = tt1.bits[i] | tt2.bits[i];
-  }
+
   return Truth_Table( tt1.num_var, tt_bits );
 }
 
@@ -238,9 +224,8 @@ inline Truth_Table operator&( Truth_Table const& tt1, Truth_Table const& tt2 )
   assert( tt1.num_var == tt2.num_var );
   std::vector<uint64_t> tt_bits(tt1.bits.size(), 0u);
   for (auto i = 0u; i < tt1.bits.size(); ++i) 
-  {
     tt_bits[i] = tt1.bits[i] & tt2.bits[i];
-  }
+
   return Truth_Table( tt1.num_var, tt_bits );
 }
 
@@ -250,9 +235,8 @@ inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
   assert( tt1.num_var == tt2.num_var );
   std::vector<uint64_t> tt_bits(tt1.bits.size(), 0u);
   for (auto i = 0u; i < tt1.bits.size(); ++i) 
-  {
     tt_bits[i] = tt1.bits[i] ^ tt2.bits[i];
-  }
+
   return Truth_Table( tt1.num_var, tt_bits );
 }
 
@@ -266,9 +250,7 @@ inline bool operator==( Truth_Table const& tt1, Truth_Table const& tt2 )
   std::vector<uint64_t> mask = length_mask(tt1.num_var);
   for (auto i = 0u; i < tt1.bits.size(); i++) {
     if ( ( tt1.bits[i] & mask[i] ) != ( tt2.bits[i] & mask[i] ) ) 
-    {
       return false;
-    }
   }
   return true;
 }
@@ -277,32 +259,6 @@ inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
   return !( tt1 == tt2 );
 }
-
-/*inline Truth_Table Truth_Table::positive_cofactor( uint8_t const var ) const
-{
-  assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_pos[var] ) | ( ( bits & var_mask_pos[var] ) >> ( 1 << var ) ) );
-}
-inline Truth_Table Truth_Table::negative_cofactor( uint8_t const var ) const
-{
-  assert( var < num_var );
-  return Truth_Table( num_var, ( bits & var_mask_neg[var] ) | ( ( bits & var_mask_neg[var] ) << ( 1 << var ) ) );
-}
-inline Truth_Table Truth_Table::derivative( uint8_t const var ) const
-{
-  assert( var < num_var );
-  return positive_cofactor( var ) ^ negative_cofactor( var );
-}
-inline Truth_Table Truth_Table::consensus( uint8_t const var ) const
-{
-  assert( var < num_var );
-  return positive_cofactor( var ) & negative_cofactor( var );
-}
-inline Truth_Table Truth_Table::smoothing( uint8_t const var ) const
-{
-  assert( var < num_var );
-  return positive_cofactor( var ) | negative_cofactor( var );
-}*/
 
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
