@@ -47,8 +47,8 @@ int main()
     auto const x1 = bdd.literal( 1 );
     auto const f = bdd.XOR( x0, x1 );
     auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
+    bdd.print( f );
+    cout << tt << endl;
     passed &= check( tt, "0110" );
     passed &= check( bdd.num_nodes( f ), 3 );
   }
@@ -60,8 +60,8 @@ int main()
     auto const x1 = bdd.literal( 1 );
     auto const f = bdd.AND( x0, x1 );
     auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
+    bdd.print( f );
+    cout << tt << endl;
     passed &= check( tt, "1000" );
     passed &= check( bdd.num_nodes( f ), 2 );
   }
@@ -74,8 +74,8 @@ int main()
     auto const x2 = bdd.literal( 2 );
     auto const f = bdd.ITE( x0, x1, x2 );
     auto const tt = bdd.get_tt( f );
-    //bdd.print( f );
-    //cout << tt << endl;
+    bdd.print( f );
+    cout << tt << endl;
     passed &= check( tt, "11011000" );
     passed &= check( bdd.num_nodes( f ), 3 );
   }

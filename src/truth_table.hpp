@@ -53,15 +53,15 @@ class Truth_Table
 {
 public:
   Truth_Table( uint8_t num_var )
-   : num_var( num_var ), bits( 0u )
+   : num_var( num_var ), bits( 1<<num_var), bits_v(bits)
   {
-    //assert( num_var <= 32u ); //comment
+    assert( num_var <= 31u ); //comment
   }
 
   Truth_Table( uint8_t num_var, uint64_t bits_v )
    : num_var( num_var ), bits( 1<<num_var )
   {
-    //assert( num_var <= 32u );//comment
+    assert( num_var <= 31u );//comment
     for (auto i = 1; i<=bits; ++i) {
         bool tt_vector = bits_v>>(bits-i) & 1; 
         this->bits_v.push_back(tt_vector);
@@ -105,6 +105,7 @@ public:
   Truth_Table(uint8_t num_var, std::vector<bool> bits_v)
   : num_var(num_var), bits_v(bits_v), bits(bits_v.size())
   {
+    //Necessary to call if after
   }
 
   uint32_t n_var() const
@@ -225,7 +226,6 @@ inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
 /* Returns the truth table of f(x_0, ..., x_num_var) = x_var (or its complement). */
 inline Truth_Table create_tt_nth_var( uint8_t const num_var, uint8_t const var, bool const polarity = true )
 {
-  assert ( num_var <= 32u && var < num_var );
-  //assert(var<num_var);
+  assert ( num_var <= 31u && var < num_var );
   return Truth_Table( num_var, polarity ? var_mask_pos[var] : var_mask_neg[var] );
 }

@@ -89,10 +89,13 @@ int main()
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
     auto const g = bdd.ref( bdd.AND( x0, x1 ) );
+    //bdd.print( g );
     auto const h = bdd.ref( bdd.AND( x0, x1 ) );
+    //bdd.print( h );
     bdd.deref( x0 ); bdd.deref( x1 );
 
     auto const f = bdd.ref( bdd.XOR( g, h ) );
+    //bdd.print( f );
     bdd.deref( g ); bdd.deref( h );
     auto const tt = bdd.get_tt( f );
 
@@ -123,21 +126,35 @@ int main()
     cout << "test 04: ITE(x2, x1, x0) AND ITE(x0, x2 AND NOT x1, x1 XOR x2)" << endl;
     BDD bdd( 3 );
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    //std::cout << "x0= " << x0 << std::endl;
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    //std::cout << "x1= " << x1 << std::endl;
     auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    //std::cout << "x2= " << x2 <<std::endl;
 
     auto const f1 = bdd.ref( bdd.ITE( x2, x1, x0 ) );
+    //std::cout << "f1= " << f1 <<std::endl;
+    //bdd.print( f1 );
 
     auto const g = bdd.ref( bdd.AND( x2, bdd.NOT( x1 ) ) );
+    //std::cout << "g= " << g <<  std::endl;
+    //bdd.print( g );
     auto const h = bdd.ref( bdd.XOR( x1, x2 ) );
+    //std::cout << "h= " << h << std::endl;
+    //bdd.print( h );
     auto const f2 = bdd.ref( bdd.ITE( x0, g, h ) );
+    //std::cout << "f2= " << f2 << std::endl;
+    //bdd.print( f2 );
     bdd.deref( g ); bdd.deref( h );
     bdd.deref( x0 ); bdd.deref( x1 ); bdd.deref( x2 );
 
     auto const f = bdd.ref( bdd.AND( f1, f2 ) );
+    //std::cout << "f= " << f << std::endl;
     bdd.deref( f1 ); bdd.deref( f2 );
 
     auto const tt = bdd.get_tt( f );
+    //bdd.print( f );
+    //cout << tt << endl;
     passed &= check( tt, "00000000" );
     cout << "  checking BDD size (reachable nodes)";
     passed &= checkEQ( bdd.num_nodes( f ), 0 );
@@ -162,6 +179,7 @@ int main()
     bdd.deref( f1 ); bdd.deref( f2 ); bdd.deref( f3 );
 
     auto const tt = bdd.get_tt( f );
+   // std::cout << "f= " << f << std::endl;
     passed &= check( tt, "01000000000000000100111100001111" );
     cout << "  checking BDD size (reachable nodes)";
     passed &= checkEQ( bdd.num_nodes( f ), 6 );
@@ -173,15 +191,25 @@ int main()
     cout << "test 06: more than 6 variables & multiple POs" << endl;
     BDD bdd( 10 );
     auto const x0 = bdd.ref( bdd.literal( 0 ) );
+    //std::cout << "x0= " << x0 << std::endl;
     auto const x1 = bdd.ref( bdd.literal( 1 ) );
+    //std::cout << "x1= " << x1 << std::endl;
     auto const x2 = bdd.ref( bdd.literal( 2 ) );
+    //std::cout << "x2= " << x2 << std::endl;
     auto const x3 = bdd.ref( bdd.literal( 3 ) );
+    //std::cout << "x3= " << x3 << std::endl;
     auto const x4 = bdd.ref( bdd.literal( 4 ) );
+    //std::cout << "x4= " << x4 << std::endl;
     auto const x5 = bdd.ref( bdd.literal( 5 ) );
+    //std::cout << "x5= " << x5 << std::endl;
     auto const x6 = bdd.ref( bdd.literal( 6 ) );
+   // std::cout << "x6= " << x6 << std::endl;
     auto const x7 = bdd.ref( bdd.literal( 7 ) );
+    //std::cout << "x7= " << x7 << std::endl;
     auto const x8 = bdd.ref( bdd.literal( 8 ) );
+   // std::cout << "x8= " << x8 << std::endl;
     auto const x9 = bdd.ref( bdd.literal( 9 ) );
+    //std::cout << "x9= " << x9 << std::endl;
 
     auto const f1 = bdd.ref( bdd.OR( x0, x9 ) );
 

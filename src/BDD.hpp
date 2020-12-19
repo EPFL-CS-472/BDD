@@ -8,7 +8,7 @@
 #include <functional>
 #include <utility>
 #include <tuple>
-#include <stdio.h> 
+#include <stdio.h>
 
 /* These are just some hacks to hash std::pair (for the unique table).
  * You don't need to understand this part. */
@@ -150,7 +150,7 @@ public:
     }
     /*Wheter or not the edge should be marked as complemented or not.
     /*TODO: The edge going to the Node should be complemented if this Node has it Then branch going to cero (it is complemented)*/
-     bool output_neg = ( not T & 0 );
+     bool output_neg = not( T & 0 );
     //bool output_neg = ( !T & 0x1 ); //Bit 32 is it 1 (complement) or 0?
     /*We want to keep the BDD canonical, so we applied the transformation)*/
     signal_t E_neg, T_neg;
@@ -163,7 +163,7 @@ public:
       T_neg = T;
       E_neg = E;
     }
-    
+
     /* Look up in the unique table. */
     const auto it = unique_table[var].find( {T_neg, E_neg} );
     if ( it != unique_table[var].end() )
@@ -175,10 +175,10 @@ public:
     {
       /* Create a new node and insert it to the unique table. */
       //std::cout << "T_neg " << T_neg << " E_neg " << E_neg <<std::endl;
-      index_t const new_index = nodes.size();
-      nodes.emplace_back( Node({var, T_neg, E_neg}) );
       ref(T_neg);
       ref(E_neg);
+      index_t const new_index = nodes.size();
+      nodes.emplace_back( Node({var, T_neg, E_neg}) );
       refs.emplace_back( 0 );
       unique_table[var][{T_neg, E_neg}] = new_index;
       return make_signal( new_index, output_neg );
@@ -187,6 +187,29 @@ public:
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
   index_t literal( var_t var, bool complement = false )
   {
+    /*
+    var = (uint_32t) 0;
+    complement = false
+    constant(!complement) = constant(true) => signal_t(uint32_t) 000..001
+    constant(complement) => signal_t(uint32_t) 000..000
+    unique(0, 00001, 0000) => make_signal(new_index=1 (size of vector nodes)=>00001 , 0 (not complemented edge)) =>return 00010 (in make signal we shift 1 bit to the right for the complemented bit)
+    x0=2
+
+    var = (uint_32t) 1)dec = 01)bin;
+    complement = false; //SIEMPRE ES FALSE? NO VEO CUANDO SE HACE TRUE...
+    constant(!complement) => signal_t(uint32_t) 000..001
+    constant(complement)  => signal_t(uint32_t) 000..000
+    unique(01, 00001, 0000) => make_signal(new_index=2 (size of vector nodes)=>00010 , 0 (not complemented edge)) =>return 00100
+    x0=4
+
+    var = (uint_32t) 2)dec = 10)bin;
+    complement = false;
+    constant(!complement) => signal_t(uint32_t) 000..001
+    constant(complement)  => signal_t(uint32_t) 000..000
+    unique(10, 00001, 0000) => make_signal(new_index=3 (size of vector nodes)=>00011 , 0 (not complemented edge)) =>return 00110
+    x0=6
+
+    */
     return unique( var, constant( !complement ), constant( complement ) );
   }
 
@@ -200,7 +223,7 @@ public:
       //std::cout << "Reference count ["<< f << "]:" << refs[get_index(f)] << std::endl;
       return f;
     };
-    
+
     void deref( signal_t f ) //Decreases the reference count of the node f
     {
       //std::cout << "Calling deref ["<< f << "]..." << std::endl;
@@ -250,16 +273,16 @@ public:
      // --num_invoke_xor;
         return find2->second;
     }
-  
+
     Node const& F = get_node( f );
     Node const& G = get_node( g );
      /* trivial cases */
-    if ( f == g ) 
+    if ( f == g )
     {
       //std::cout << "\r OutputXOR: " << constant( false ) << std::endl;
-      return constant( false ); 
+      return constant( false );
     }
-    if ( f == constant( false ) ) 
+    if ( f == constant( false ) )
     {
       //std::cout << "\r OutputXOR: " << g << std::endl;
       return g;
@@ -411,6 +434,7 @@ public:
     //Check if this computation has already been done before
     auto key_typea = std::make_tuple(f, g);
     auto key_typeb = std::make_tuple(g, f);
+
     auto find = computed_table_OR.find( key_typea );
     if( find != computed_table_OR.end() ){//if already computed, return it
     //--num_invoke_or;
@@ -443,7 +467,7 @@ public:
     }
     if ( f == g )
     {
-      //std::cout << "  OutputOR: " << f << std::endl; 
+      //std::cout << "  OutputOR: " << f << std::endl;
       return f;
     }
 
@@ -612,7 +636,7 @@ public:
     else
     {
       if ( is_complemented( f ) ) /*if the edge of f pointing to its node is 1*/
-      { 
+      {
         std::cout << "f is complemented" << std::endl;
         os << "!";
       }
@@ -679,7 +703,7 @@ public:
   uint64_t num_nodes() const
   {
     uint64_t n = 0u; //Can it be 1?
-    for ( auto i = 1u; i < nodes.size(); ++i ) // for ( auto i = 1u; i < nodes.size(); ++i )
+    for ( index_t i = 1u; i < nodes.size(); ++i ) // for ( auto i = 1u; i < nodes.size(); ++i )
     {
       if ( !is_dead(i) )
       {
@@ -694,9 +718,34 @@ public:
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
   uint64_t num_nodes( signal_t f ) const
   {
-    if ( f == constant( false ) || f == constant( true ) )
+    //std::cout << "\nf " << f << std::endl;
+
+    // std::cout << "\nfirst if " << std::endl;
+    // std::cout << "index of f " << get_index(f) << std::endl;
+    // std::cout << "index of false " << get_index(constant( false )) << std::endl;
+    // std::cout << "and if " << std::endl;
+    // std::cout << "Bit of f " << is_complemented(get_index(f)) << std::endl;
+    // std::cout << "Bit of true " << is_complemented(constant( true )) << std::endl;
+
+    // std::cout << "\nsecond if " << std::endl;
+    // std::cout << "index of f " << get_index(f) << std::endl;
+    // std::cout << "index of true " << get_index(constant( true )) << std::endl;
+    // std::cout << "and if " << std::endl;
+    // std::cout << "Bit of f " << is_complemented(get_index(f)) << std::endl;
+    // std::cout << "bit of false " <<  is_complemented(constant( false )) << std::endl;
+
+    auto ind_f = get_index(f);
+    auto ind_false = get_index(constant(false));
+    auto ind_true = get_index(constant( true ));
+    auto comp_f = is_complemented(ind_f);
+    auto comp_true = is_complemented(ind_true);
+    auto comp_false = is_complemented(ind_false);
+
+    if ( (ind_f == ind_false && comp_f == comp_false) || (ind_f == ind_true && comp_f == comp_true)  )
+        // if ( (get_index(f) == get_index(constant( false )) && is_complemented(get_index(f)) == is_complemented(constant( false )))||
+        // (get_index(f) == get_index(constant( true )) && is_complemented(get_index(f)) == is_complemented(constant( true ))))
     {
-      return 0u;
+      return 0;
     }
 
     std::vector<bool> visited( nodes.size(), false );
@@ -732,7 +781,7 @@ private:
       n += num_nodes_rec( get_index( F.E ), visited );
       visited[get_index( F.E )] = true;
     }
-    return n + 1u;
+    return n+1;
   }
 
 private:
