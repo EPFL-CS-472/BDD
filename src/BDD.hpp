@@ -14,55 +14,55 @@
  * You don't need to understand this part. */
 namespace std
 {
-template<class T>
-inline void hash_combine( size_t& seed, T const& v )
-{
-  seed ^= hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
-template<>
-struct hash<pair<uint32_t, uint32_t>>
-{
-  using argument_type = pair<uint32_t, uint32_t>;
-  using result_type = size_t;
-  result_type operator() ( argument_type const& in ) const
+  template <class T>
+  inline void hash_combine(size_t &seed, T const &v)
   {
-    result_type seed = 0;
-    hash_combine( seed, in.first );
-    hash_combine( seed, in.second );
-    return seed;
+    seed ^= hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
-};
 
-template<>
-struct hash<tuple<uint32_t, uint32_t>>
-{
-  using argument_type = tuple<uint32_t, uint32_t>;
-  using result_type = size_t;
-  result_type operator() ( argument_type const& in ) const
+  template <>
+  struct hash<pair<uint32_t, uint32_t>>
   {
-    result_type seed = 0;
-    hash_combine( seed, std::get<0>( in ) );
-    hash_combine( seed, std::get<1>( in ) );
-    return seed;
-  }
-};
+    using argument_type = pair<uint32_t, uint32_t>;
+    using result_type = size_t;
+    result_type operator()(argument_type const &in) const
+    {
+      result_type seed = 0;
+      hash_combine(seed, in.first);
+      hash_combine(seed, in.second);
+      return seed;
+    }
+  };
 
-template<>
-struct hash<tuple<uint32_t, uint32_t, uint32_t>>
-{
-  using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
-  using result_type = size_t;
-  result_type operator() ( argument_type const& in ) const
+  template <>
+  struct hash<tuple<uint32_t, uint32_t>>
   {
-    result_type seed = 0;
-    hash_combine( seed, std::get<0>( in ) );
-    hash_combine( seed, std::get<1>( in ) );
-    hash_combine( seed, std::get<2>( in ) );
-    return seed;
-  }
-};
-}
+    using argument_type = tuple<uint32_t, uint32_t>;
+    using result_type = size_t;
+    result_type operator()(argument_type const &in) const
+    {
+      result_type seed = 0;
+      hash_combine(seed, std::get<0>(in));
+      hash_combine(seed, std::get<1>(in));
+      return seed;
+    }
+  };
+
+  template <>
+  struct hash<tuple<uint32_t, uint32_t, uint32_t>>
+  {
+    using argument_type = tuple<uint32_t, uint32_t, uint32_t>;
+    using result_type = size_t;
+    result_type operator()(argument_type const &in) const
+    {
+      result_type seed = 0;
+      hash_combine(seed, std::get<0>(in));
+      hash_combine(seed, std::get<1>(in));
+      hash_combine(seed, std::get<2>(in));
+      return seed;
+    }
+  };
+} // namespace std
 
 class BDD
 {
@@ -85,51 +85,39 @@ private:
 
   struct Node
   {
-    var_t v; /* corresponding variable */
+    var_t v;    /* corresponding variable */
     signal_t T; /* signal of THEN child (should not be complemented) */
     signal_t E; /* signal of ELSE child */
   };
 
-  inline signal_t make_signal( index_t index, bool complement = false ) const
+  inline signal_t make_signal(index_t index, bool complement = false) const
   {
-    return complement ? ( index << 1 ) + 1 : index << 1;
+    return complement ? (index << 1) + 1 : index << 1;
   }
 
-  inline index_t get_index( signal_t signal ) const
+  inline index_t get_index(signal_t signal) const
   {
-    assert( ( signal >> 1 ) < nodes.size() );
+    assert((signal >> 1) < nodes.size());
     return signal >> 1;
   }
 
-  inline Node get_node( signal_t signal ) const
+  inline Node get_node(signal_t signal) const
   {
-    return nodes[get_index( signal )];
+    return nodes[get_index(signal)];
   }
 
-  inline bool is_complemented( signal_t signal ) const
+  inline bool is_complemented(signal_t signal) const
   {
     return signal & 0x1;
   }
 
-  inline signal_t complement( signal_t signal ) const
-  {
-  	if (is_complemented(signal))
-  	{
-      return (signal >> 1) << 1;
-    }
-    else 
-    {
-      return signal + 1;
-    }
-  }
-
 public:
-  explicit BDD( uint32_t num_vars )
-    : unique_table( num_vars ), num_invoke_and( 0u ), num_invoke_or( 0u ), 
-      num_invoke_xor( 0u ), num_invoke_ite( 0u )
+  explicit BDD(uint32_t num_vars)
+      : unique_table(num_vars), num_invoke_and(0u), num_invoke_or(0u),
+        num_invoke_xor(0u), num_invoke_ite(0u)
   {
-    nodes.emplace_back( Node({num_vars, 0, 0}) ); /* constant 1 */
-    refs.emplace_back( 0 );
+    nodes.emplace_back(Node({num_vars, 0, 0})); /* constant 1 */
+    refs.emplace_back(0);
   }
 
   /**********************************************************/
@@ -142,72 +130,74 @@ public:
   }
 
   /* Get the constant signal. */
-  signal_t constant( bool value ) const
+  signal_t constant(bool value) const
   {
-    /* TODO */
-    if (value)
-    	return 1;
-    else
-    	return 0;
+    return value ? 1 : 0;
   }
 
   /* Look up (if exist) or build (if not) the node with variable `var`,
    * THEN child `T`, and ELSE child `E`. */
-  signal_t unique( var_t var, signal_t T, signal_t E, bool output_neg = false )
+  signal_t unique(var_t var, signal_t T, signal_t E)
   {
-    assert( var < num_vars() && "Variables range from 0 to `num_vars - 1`." );
-    assert( get_node( T ).v > var && "With static variable order, children can only be below the node." );
-    assert( get_node( E ).v > var && "With static variable order, children can only be below the node." );
+    assert(var < num_vars() && "Variables range from 0 to `num_vars - 1`.");
+    assert(get_node(T).v > var && "With static variable order, children can only be below the node.");
+    assert(get_node(E).v > var && "With static variable order, children can only be below the node.");
 
     /* Reduction rule: Identical children */
-    if ( T == E )
+    if (T == E)
     {
       return T;
     }
 
-    //bool output_neg = false; /* TODO */
+    bool output_neg = false;
+    if (is_complemented(T))
+    {
+      output_neg = true;
+      T = NOT(T);
+      E = NOT(E);
+    }
 
     /* Look up in the unique table. */
-    const auto it = unique_table[var].find( {T, E} );
-    if ( it != unique_table[var].end() )
+    const auto it = unique_table[var].find({T, E});
+    if (it != unique_table[var].end())
     {
       /* The required node already exists. Return it. */
-      return make_signal( it->second, output_neg );
+      return make_signal(it->second, output_neg);
     }
     else
     {
       /* Create a new node and insert it to the unique table. */
       index_t const new_index = nodes.size();
-      nodes.emplace_back( Node({var, T, E}) );
-      refs.emplace_back( 0 );
+      nodes.emplace_back(Node({var, ref(T), ref(E)}));
+      refs.emplace_back(0);
       unique_table[var][{T, E}] = new_index;
-      return make_signal( new_index, output_neg );
+      return make_signal(new_index, output_neg);
     }
   }
 
   /* Return a node (represented with its index) of function F = x_var or F = ~x_var. */
-  signal_t literal( var_t var, bool complement = false )
+  signal_t literal(var_t var, bool complement = false)
   {
-    return unique( var, constant( !complement ), constant( complement ) );
+    return unique(var, constant(!complement), constant(complement));
   }
 
   /**********************************************************/
   /*********************** Ref & Deref **********************/
   /**********************************************************/
-  signal_t ref( signal_t f )
+  signal_t ref(signal_t f)
   {
-    /* TODO */
+    // increase ref count of f's node and return it
     refs[get_index(f)] += 1;
     return f;
   }
 
-  void deref( signal_t f )
+  void deref(signal_t f)
   {
-    /* TODO */
-    Node const& F = get_node(f);
+    // decrease reference count of f's node: if 0, call deref on its children
+    Node const &F = get_node(f);
     index_t ind = get_index(f);
     refs[ind] -= 1;
-    if (is_dead(ind)) 
+    if (is_dead(ind))
     {
       deref(F.T);
       deref(F.E);
@@ -219,30 +209,32 @@ public:
   /**********************************************************/
 
   /* Compute ~f */
-  signal_t NOT( signal_t f )
+  signal_t NOT(signal_t f)
   {
-    /* TODO */
-    Node const& F = get_node( f );
     signal_t nf;
-    if (is_complemented(f)) 
+    if (is_complemented(f))
+    {
       nf = (f >> 1) << 1;
-    else 
+    }
+    else
+    {
       nf = f + 1;
+    }
     return nf;
   }
 
   /* Compute f ^ g */
-  signal_t XOR( signal_t f, signal_t g )
+  signal_t XOR(signal_t f, signal_t g)
   {
     ++num_invoke_xor;
-    const auto r = computed_table_XOR.find( {f, g} );
-    const auto s = computed_table_XOR.find( {g, f} );
-    if ( r != computed_table_XOR.end() )
+    const auto r = computed_table_XOR.find({f, g});
+    const auto s = computed_table_XOR.find({g, f});
+    if (r != computed_table_XOR.end())
     {
       // the computation already exists.
       return r->second;
     }
-    else if ( s != computed_table_XOR.end() )
+    else if (s != computed_table_XOR.end())
     {
       // the computation already exists.
       return s->second;
@@ -250,62 +242,62 @@ public:
     else
     {
       // compute and insert computation to the computed table
-      Node const& F = get_node( f );
-      Node const& G = get_node( g );
+      Node const &F = get_node(f);
+      Node const &G = get_node(g);
 
       /* trivial cases */
-      if ( f == g )
+      if (f == g)
       {
-        return constant( false );
+        return constant(false);
       }
-      if ( f == constant( false ) )
+      if (f == constant(false))
       {
         return g;
       }
-      if ( g == constant( false ) )
+      if (g == constant(false))
       {
         return f;
       }
-      if ( f == constant( true ) )
+      if (f == constant(true))
       {
-        return NOT( g );
+        return NOT(g);
       }
-      if ( g == constant( true ) )
+      if (g == constant(true))
       {
-        return NOT( f );
+        return NOT(f);
       }
-      if ( f == NOT( g ) )
+      if (f == NOT(g))
       {
-        return constant( true );
+        return constant(true);
       }
 
       var_t x;
       signal_t f0, f1, g0, g1;
-      if ( F.v < G.v ) /* F is on top of G */
+      if (F.v < G.v) /* F is on top of G */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
         g0 = g1 = g;
       }
-      else if ( G.v < F.v ) /* G is on top of F */
+      else if (G.v < F.v) /* G is on top of F */
       {
         x = G.v;
         f0 = f1 = f;
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
@@ -314,145 +306,104 @@ public:
       else /* F and G are at the same level */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
         }
       }
-
-      signal_t rT;
-      const auto r2 = computed_table_XOR.find( {f1, g1} );
-      const auto s2 = computed_table_XOR.find( {g1, f1} );
-      if ( r2 != computed_table_XOR.end() )
-      {
-        // the computation already exists.
-        rT = r2->second;
-      }
-      else if ( s2 != computed_table_XOR.end() )
-      {
-        // the computation already exists.
-        rT = s2->second;
-      }
-      else
-      {
-        rT = XOR( f1, g1 );
-      }
-      signal_t rE;
-      const auto r3 = computed_table_XOR.find( {f0, g0} );
-      const auto s3 = computed_table_XOR.find( {g0, f0} );
-      if ( r3 != computed_table_XOR.end() )
-      {
-        // the computation already exists.
-        rE = r3->second;
-      }
-      else if ( s3 != computed_table_XOR.end() )
-      {
-        // the computation already exists.
-        rE = s3->second;
-      }
-      else
-      {
-        rE = XOR( f0, g0 );
-      }
-      signal_t r1C = rT;
-      signal_t r0C = rE;
-      bool output_neg = false;
-      if (is_complemented(rT)) {
-        output_neg = true;
-        r1C = complement(rT);
-        r0C = complement(rE);
-      }
-      signal_t const r0 = ref(r0C);
-      signal_t const r1 = ref(r1C);
-      signal_t result = unique( x, r1, r0, output_neg );
+      signal_t const r0 = ref(XOR(f0, g0));
+      signal_t const r1 = ref(XOR(f1, g1));
+      signal_t result = unique(x, r1, r0);
+      deref(r0);
+      deref(r1);
       computed_table_XOR[{f, g}] = result;
       return result;
     }
   }
 
   /* Compute f & g */
-  signal_t AND( signal_t f, signal_t g )
+  signal_t AND(signal_t f, signal_t g)
   {
     ++num_invoke_and;
-    const auto r = computed_table_AND.find( {f, g} );
-    const auto s = computed_table_AND.find( {g, f} );
-    if ( r != computed_table_AND.end() )
+    const auto r = computed_table_AND.find({f, g});
+    const auto s = computed_table_AND.find({g, f});
+    if (r != computed_table_AND.end())
     {
       // the computation already exists.
       return r->second;
     }
-    else if ( s != computed_table_AND.end() )
+    else if (s != computed_table_AND.end())
     {
       // the computation already exists.
       return s->second;
     }
     else
     {
-      Node const& F = get_node( f );
-      Node const& G = get_node( g );
+      Node const &F = get_node(f);
+      Node const &G = get_node(g);
 
       /* trivial cases */
-      if ( f == constant( false ) || g == constant( false ) )
+      if (f == constant(false) || g == constant(false))
       {
-        return constant( false );
+        return constant(false);
       }
-      if ( f == constant( true ) )
+      if (f == constant(true))
       {
         return g;
       }
-      if ( g == constant( true ) )
+      if (g == constant(true))
       {
         return f;
       }
-      if ( f == g )
+      if (f == g)
       {
         return f;
       }
 
       var_t x;
       signal_t f0, f1, g0, g1;
-      if ( F.v < G.v ) /* F is on top of G */
+      if (F.v < G.v) /* F is on top of G */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
         g0 = g1 = g;
       }
-      else if ( G.v < F.v ) /* G is on top of F */
+      else if (G.v < F.v) /* G is on top of F */
       {
 
         x = G.v;
         f0 = f1 = f;
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
@@ -461,144 +412,103 @@ public:
       else /* F and G are at the same level */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
         }
       }
-          
-      signal_t rT;
-      const auto r2 = computed_table_AND.find( {f1, g1} );
-      const auto s2 = computed_table_AND.find( {g1, f1} );
-      if ( r2 != computed_table_AND.end() )
-      {
-        // the computation already exists.
-        rT = r2->second;
-      }
-      else if ( s2 != computed_table_AND.end() )
-      {
-        // the computation already exists.
-        rT = s2->second;
-      }
-      else
-      {
-        rT = AND( f1, g1 );
-      }
-      signal_t rE;
-      const auto r3 = computed_table_AND.find( {f0, g0} );
-      const auto s3 = computed_table_AND.find( {g0, f0} );
-      if ( r3 != computed_table_AND.end() )
-      {
-        // the computation already exists.
-        rE = r3->second;
-      }
-      else if ( s3 != computed_table_AND.end() )
-      {
-        // the computation already exists.
-        rE = s3->second;
-      }
-      else
-      {
-        rE = AND( f0, g0 );
-      }
-      signal_t r1C = rT;
-      signal_t r0C = rE;
-      bool output_neg = false;
-      if (is_complemented(rT)) {
-        output_neg = true;
-        r1C = complement(rT);
-        r0C = complement(rE);
-      }
-      signal_t const r0 = ref(r0C);
-      signal_t const r1 = ref(r1C);
-      signal_t result = unique( x, r1, r0, output_neg );
+      signal_t const r0 = ref(AND(f0, g0));
+      signal_t const r1 = ref(AND(f1, g1));
+      signal_t result = unique(x, r1, r0);
+      deref(r0);
+      deref(r1);
       computed_table_AND[{f, g}] = result;
       return result;
-  	}
+    }
   }
 
   /* Compute f | g */
-  signal_t OR( signal_t f, signal_t g )
+  signal_t OR(signal_t f, signal_t g)
   {
     ++num_invoke_or;
-    const auto r = computed_table_OR.find( {f, g} );
-    const auto s = computed_table_OR.find( {g, f} );
-    if ( r != computed_table_OR.end() )
+    const auto r = computed_table_OR.find({f, g});
+    const auto s = computed_table_OR.find({g, f});
+    if (r != computed_table_OR.end())
     {
       // the computation already exists.
       return r->second;
     }
-    else if ( s != computed_table_OR.end() )
+    else if (s != computed_table_OR.end())
     {
       // the computation already exists.
       return s->second;
     }
     else
     {
-      Node const& F = get_node( f );
-      Node const& G = get_node( g );
+      Node const &F = get_node(f);
+      Node const &G = get_node(g);
 
       /* trivial cases */
-      if ( f == constant( true ) || g == constant( true ) )
+      if (f == constant(true) || g == constant(true))
       {
-        return constant( true );
+        return constant(true);
       }
-      if ( f == constant( false ) )
+      if (f == constant(false))
       {
         return g;
       }
-      if ( g == constant( false ) )
+      if (g == constant(false))
       {
         return f;
       }
-      if ( f == g )
+      if (f == g)
       {
         return f;
       }
 
       var_t x;
       signal_t f0, f1, g0, g1;
-      if ( F.v < G.v ) /* F is on top of G */
+      if (F.v < G.v) /* F is on top of G */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
         g0 = g1 = g;
       }
-      else if ( G.v < F.v ) /* G is on top of F */
+      else if (G.v < F.v) /* G is on top of F */
       {
         x = G.v;
         f0 = f1 = f;
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
@@ -607,140 +517,100 @@ public:
       else /* F and G are at the same level */
       {
         x = F.v;
-        if (is_complemented(f)) 
-        { 
-          f0 = complement(F.E);
-          f1 = complement(F.T); 
+        if (is_complemented(f))
+        {
+          f0 = NOT(F.E);
+          f1 = NOT(F.T);
         }
-        else 
+        else
         {
           f0 = F.E;
           f1 = F.T;
         }
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
         }
       }
-
-      signal_t rT;
-      const auto r2 = computed_table_OR.find( {f1, g1} );
-      const auto s2 = computed_table_OR.find( {g1, f1} );
-      if ( r2 != computed_table_OR.end() )
-      {
-        // the computation already exists.
-        rT = r2->second;
-      }
-      else if ( s2 != computed_table_OR.end() )
-      {
-        // the computation already exists.
-        rT = s2->second;
-      }
-      else
-      {
-        rT = OR( f1, g1 );
-      }
-      signal_t rE = OR( f0, g0 );
-      const auto r3 = computed_table_OR.find( {f0, g0} );
-      const auto s3 = computed_table_OR.find( {g0, f0} );
-      if ( r3 != computed_table_OR.end() )
-      {
-        // the computation already exists.
-        rE = r3->second;
-      }
-      else if ( s3 != computed_table_OR.end() )
-      {
-        // the computation already exists.
-        rE = s3->second;
-      }
-      else
-      {
-        rE = OR( f0, g0 );
-      }
-      signal_t r1C = rT;
-      signal_t r0C = rE;
-      bool output_neg = false;
-      if (is_complemented(rT)) {
-        output_neg = true;
-        r1C = complement(rT);
-        r0C = complement(rE);
-      }
-      signal_t const r0 = ref(r0C);
-      signal_t const r1 = ref(r1C);
-      signal_t result = unique( x, r1, r0, output_neg );
+      signal_t const r0 = ref(OR(f0, g0));
+      signal_t const r1 = ref(OR(f1, g1));
+      signal_t result = unique(x, r1, r0);
+      deref(r0);
+      deref(r1);
       computed_table_OR[{f, g}] = result;
       return result;
     }
   }
 
   /* Compute ITE(f, g, h), i.e., f ? g : h */
-  signal_t ITE( signal_t f, signal_t g, signal_t h )
+  signal_t ITE(signal_t f, signal_t g, signal_t h)
   {
     ++num_invoke_ite;
-    const auto r = computed_table_ITE.find( {f, g, h} );
-    if ( r != computed_table_ITE.end() )
+    const auto r = computed_table_ITE.find({f, g, h});
+    if (r != computed_table_ITE.end())
     {
       // the computation already exists.
       return r->second;
-    } else if (is_complemented(f)) {
-      auto cf = complement(f);
-      const auto s = computed_table_ITE.find( {cf, h, g} );
-      if ( s != computed_table_ITE.end() )
+    }
+    else
+    {
+      auto cf = ref(NOT(f));
+      const auto s = computed_table_ITE.find({cf, h, g});
+      if (s != computed_table_ITE.end())
       {
         // the computation already exists.
         return s->second;
       }
+      deref(cf);
     }
-  
-    Node const& F = get_node( f );
-    Node const& G = get_node( g );
-    Node const& H = get_node( h );
 
-    //std::cout << get_index(f) << get_index(g) << get_index(h) << std::endl;
+    Node const &F = get_node(f);
+    Node const &G = get_node(g);
+    Node const &H = get_node(h);
 
     /* trivial cases */
-    if ( f == constant( true ) )
+    if (f == constant(true))
     {
       return g;
     }
-    if ( f == constant( false ) )
+    if (f == constant(false))
     {
       return h;
     }
-    if ( g == h )
+    if (g == h)
     {
       return g;
     }
 
     var_t x;
     signal_t f0, f1, g0, g1, h0, h1;
-    if ( F.v <= G.v && F.v <= H.v ) /* F is not lower than both G and H */
+    if (F.v <= G.v && F.v <= H.v) /* F is not lower than both G and H */
     {
       x = F.v;
-      if (is_complemented(f)) 
-      { 
-        f0 = complement(F.E);
-        f1 = complement(F.T); 
+      if (is_complemented(f))
+      {
+        f0 = NOT(F.E);
+        f1 = NOT(F.T);
       }
-      else 
+      else
       {
         f0 = F.E;
         f1 = F.T;
       }
-      if ( G.v == F.v )
+      if (G.v == F.v)
       {
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
@@ -750,14 +620,14 @@ public:
       {
         g0 = g1 = g;
       }
-      if ( H.v == F.v )
+      if (H.v == F.v)
       {
-        if (is_complemented(h)) 
-        { 
-          h0 = complement(H.E);
-          h1 = complement(H.T); 
+        if (is_complemented(h))
+        {
+          h0 = NOT(H.E);
+          h1 = NOT(H.T);
         }
-        else 
+        else
         {
           h0 = H.E;
           h1 = H.T;
@@ -771,31 +641,31 @@ public:
     else /* F.v > min(G.v, H.v) */
     {
       f0 = f1 = f;
-      if ( G.v < H.v )
+      if (G.v < H.v)
       {
         x = G.v;
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
         }
         h0 = h1 = h;
       }
-      else if ( H.v < G.v )
+      else if (H.v < G.v)
       {
         x = H.v;
         g0 = g1 = g;
-        if (is_complemented(h)) 
-        { 
-          h0 = complement(H.E);
-          h1 = complement(H.T); 
+        if (is_complemented(h))
+        {
+          h0 = NOT(H.E);
+          h1 = NOT(H.T);
         }
-        else 
+        else
         {
           h0 = H.E;
           h1 = H.T;
@@ -804,62 +674,33 @@ public:
       else /* G.v == H.v */
       {
         x = G.v;
-        if (is_complemented(g)) 
-        { 
-          g0 = complement(G.E);
-          g1 = complement(G.T); 
+        if (is_complemented(g))
+        {
+          g0 = NOT(G.E);
+          g1 = NOT(G.T);
         }
-        else 
+        else
         {
           g0 = G.E;
           g1 = G.T;
         }
-        if (is_complemented(h)) 
-        { 
-          h0 = complement(H.E);
-          h1 = complement(H.T); 
+        if (is_complemented(h))
+        {
+          h0 = NOT(H.E);
+          h1 = NOT(H.T);
         }
-        else 
+        else
         {
           h0 = H.E;
           h1 = H.T;
         }
       }
     }
-
-    signal_t rT;
-    const auto r2 = computed_table_ITE.find( {f1, g1, h1} );
-    if ( r2 != computed_table_ITE.end() )
-    {
-      // the computation already exists.
-      rT = r2->second;
-    }
-    else
-    {
-      rT = ITE( f1, g1, h1 );
-    }
-    signal_t rE;
-    const auto r3 = computed_table_ITE.find( {f0, g0, h0} );
-    if ( r3 != computed_table_ITE.end() )
-    {
-      // the computation already exists.
-      rE = r3->second;
-    }
-    else
-    {
-      rE = ITE( f0, g0, h0 );
-    }
-    signal_t r1C = rT;
-    signal_t r0C = rE;
-    bool output_neg = false;
-    if (is_complemented(rT)) {
-      output_neg = true;
-      r1C = complement(rT);
-      r0C = complement(rE);
-    }
-    signal_t const r0 = ref(r0C);
-    signal_t const r1 = ref(r1C);
-    signal_t result = unique( x, r1, r0, output_neg );
+    signal_t const r0 = ref(ITE( f0, g0, h0 ));
+    signal_t const r1 = ref(ITE( f1, g1, h1 ));
+    signal_t result = unique(x, r1, r0);
+    deref(r0);
+    deref(r1);
     computed_table_ITE[{f, g, h}] = result;
     return result;
   }
@@ -869,20 +710,20 @@ public:
   /**********************************************************/
 
   /* Print the BDD rooted at node `f`. */
-  void print( signal_t f, std::ostream& os = std::cout ) const
+  void print(signal_t f, std::ostream &os = std::cout) const
   {
-    Node const& F = get_node( f );
-    for ( auto i = 0u; i < F.v; ++i )
+    Node const &F = get_node(f);
+    for (auto i = 0u; i < F.v; ++i)
     {
       os << "  ";
     }
-    if ( f <= 1 )
+    if (f <= 1)
     {
-      os << "constant " << ( f ? "0" : "1" ) << std::endl;
+      os << "constant " << (f ? "0" : "1") << std::endl;
     }
     else
     {
-      if ( is_complemented( f ) )
+      if (is_complemented(f))
       {
         os << "!";
       }
@@ -891,55 +732,55 @@ public:
         os << " ";
       }
 
-      os << "node " << get_index( f ) << ": var = " << F.v << ", T = " << F.T 
+      os << "node " << get_index(f) << ": var = " << F.v << ", T = " << F.T
          << ", E = " << F.E << std::endl;
-      for ( auto i = 0u; i < F.v; ++i )
+      for (auto i = 0u; i < F.v; ++i)
       {
         os << "  ";
       }
       os << "> THEN branch" << std::endl;
-      print( F.T, os );
-      for ( auto i = 0u; i < F.v; ++i )
+      print(F.T, os);
+      for (auto i = 0u; i < F.v; ++i)
       {
         os << "  ";
       }
       os << "> ELSE branch" << std::endl;
-      print( F.E, os );
+      print(F.E, os);
     }
   }
 
   /* Get the truth table of the BDD rooted at node f. */
-  Truth_Table get_tt( signal_t f ) const
+  Truth_Table get_tt(signal_t f) const
   {
-    Node const& F = get_node( f );
+    Node const &F = get_node(f);
 
-    if ( f == constant( false ) )
+    if (f == constant(false))
     {
-      return Truth_Table( num_vars() );
+      return Truth_Table(num_vars());
     }
-    else if ( f == constant( true ) )
+    else if (f == constant(true))
     {
-      return ~Truth_Table( num_vars() );
+      return ~Truth_Table(num_vars());
     }
-    
+
     /* Shannon expansion: f = x f_x + x' f_x' */
     var_t const x = F.v;
     signal_t const fx = F.T;
     signal_t const fnx = F.E;
-    Truth_Table const tt_x = create_tt_nth_var( num_vars(), x );
-    Truth_Table const tt_nx = create_tt_nth_var( num_vars(), x, false );
-    if ( is_complemented( f ) )
+    Truth_Table const tt_x = create_tt_nth_var(num_vars(), x);
+    Truth_Table const tt_nx = create_tt_nth_var(num_vars(), x, false);
+    if (is_complemented(f))
     {
-      return ~( ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) ) );
+      return ~((tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx)));
     }
     else
     {
-      return ( tt_x & get_tt( fx ) ) | ( tt_nx & get_tt( fnx ) );
+      return (tt_x & get_tt(fx)) | (tt_nx & get_tt(fnx));
     }
   }
 
   /* Whether `f` is dead (having a reference count of 0). */
-  bool is_dead( index_t f ) const
+  bool is_dead(index_t f) const
   {
     return refs[f] == 0u;
   }
@@ -948,9 +789,9 @@ public:
   uint64_t num_nodes() const
   {
     uint64_t n = 0u;
-    for ( auto i = 1u; i < nodes.size(); ++i )
+    for (auto i = 1u; i < nodes.size(); ++i)
     {
-      if ( !is_dead( i ) )
+      if (!is_dead(i))
       {
         ++n;
       }
@@ -959,17 +800,17 @@ public:
   }
 
   /* Get the number of nodes in the sub-graph rooted at node f, excluding constants. */
-  uint64_t num_nodes( signal_t f ) const
+  uint64_t num_nodes(signal_t f) const
   {
-    if ( f == constant( false ) || f == constant( true ) )
+    if (f == constant(false) || f == constant(true))
     {
       return 0u;
     }
 
-    std::vector<bool> visited( nodes.size(), false );
+    std::vector<bool> visited(nodes.size(), false);
     visited[0] = true;
 
-    return num_nodes_rec( get_index( f ), visited );
+    return num_nodes_rec(get_index(f), visited);
   }
 
   uint64_t num_invoke() const
@@ -982,21 +823,21 @@ private:
   /******************** Helper Functions ********************/
   /**********************************************************/
 
-  uint64_t num_nodes_rec( index_t f, std::vector<bool>& visited ) const
+  uint64_t num_nodes_rec(index_t f, std::vector<bool> &visited) const
   {
-    assert( f < nodes.size() && "Make sure f exists." );
+    assert(f < nodes.size() && "Make sure f exists.");
 
     uint64_t n = 0u;
-    Node const& F = nodes[f];
-    if ( !visited[get_index( F.T )] )
+    Node const &F = nodes[f];
+    if (!visited[get_index(F.T)])
     {
-      n += num_nodes_rec( get_index( F.T ), visited );
-      visited[get_index( F.T )] = true;
+      n += num_nodes_rec(get_index(F.T), visited);
+      visited[get_index(F.T)] = true;
     }
-    if ( !visited[get_index( F.E )] )
+    if (!visited[get_index(F.E)])
     {
-      n += num_nodes_rec( get_index( F.E ), visited );
-      visited[get_index( F.E )] = true;
+      n += num_nodes_rec(get_index(F.E), visited);
+      visited[get_index(F.E)] = true;
     }
     return n + 1u;
   }
