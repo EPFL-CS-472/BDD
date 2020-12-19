@@ -9,6 +9,7 @@ using namespace std;
 
 bool check( Truth_Table const& tt, string const& ans )
 {
+  Truth_Table test = Truth_Table(ans);
   cout << "  checking function correctness";
   if ( tt == Truth_Table( ans ) )
   {
@@ -109,6 +110,7 @@ int main()
     auto const f = bdd.ref( bdd.XOR( x0, x1 ) );
     bdd.deref( x0 ); bdd.deref( x1 );
     auto const tt = bdd.get_tt( f );
+    cout << bdd.get_tt(f) << endl;
 
     passed &= check( tt, "0110" );
     cout << "  checking BDD size (reachable nodes)";

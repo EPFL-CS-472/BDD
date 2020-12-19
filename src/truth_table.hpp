@@ -51,6 +51,8 @@ inline std::vector<uint64_t> get_var_pos(uint8_t numvar, uint8_t var){
             for(size_t j = 0; j < n; j++)
                 ret.push_back(full);
         }
+        if(numvar < 6)
+            ret.at(0) &= length_mask[numvar];
         return ret;
     }
 }
@@ -71,6 +73,8 @@ inline std::vector<uint64_t> get_var_neg(uint8_t numvar, uint8_t var){
             for(size_t j = 0; j < n; j++)
                 ret.push_back(0x0);
         }
+        if(numvar < 6)
+            ret.at(0) &= length_mask[numvar];
         return ret;
     }
 }
@@ -160,10 +164,15 @@ inline uint8_t get_bits_index( uint8_t pos)
 
 inline std::vector<uint64_t> build_bits(uint8_t numvars){
     std::vector<uint64_t> ret = {0u};
-    if(numvars < 6)
-        return ret;
-    for(size_t i = 0; i < numvars - 6; i++)
-        ret.push_back(0u);
+    if(numvars > 6)
+    {
+        for(size_t i = 0; i < numvars - 6; i++){
+            ret.push_back(0u);
+        }
+
+    }
+    else
+        ret.at(0) &= length_mask[numvars];
     return ret;
 }
 
@@ -223,7 +232,8 @@ public:
     assert( position < ( 1 << num_var ) );
     uint8_t index = get_bits_index(position);;
     bits.at(index) |= ( uint64_t( 1 ) << (position - (index*64)) );
-    bits.at(get_bits_index(num_var)) &= length_mask[num_var-(get_bits_index(num_var)*64)];
+    if(num_var < 6)
+        bits.at(0) &= length_mask[num_var];
   }
 
   uint8_t n_var() const
@@ -298,11 +308,21 @@ inline Truth_Table operator^( Truth_Table const& tt1, Truth_Table const& tt2 )
 /* check if two truth_tables are the same */
 inline bool operator==( Truth_Table const& tt1, Truth_Table const& tt2 )
 {
+   // std::cout << "\n tt1 numvar is " << tt1.num_var << "  tt2 numvar is " << tt2.num_var << std::endl;
+   // std::cout << "tt1 size is " << tt1.bits.size() << "  tt2 size is " << tt2.bits.size() << std::endl;
   if ( tt1.num_var != tt2.num_var )
   {
     return false;
   }
-  return tt1.bits == tt2.bits;
+  bool is_equal = true;
+  if(tt1.num_var < 6)
+      return (tt1.bits.at(0) & length_mask[tt1.num_var]) == (tt2.bits.at(0) & length_mask[tt2.num_var]);
+  for(size_t i = 0; i < tt1.bits.size(); i++){
+      std::cout << i << "---- tt1 is " << tt1.bits.at(i) << "  tt2 is " << tt2.bits.at(i) << std::endl;
+
+        is_equal &= (tt1.bits.at(i) == tt2.bits.at(i));
+  }
+  return is_equal;
 }
 
 inline bool operator!=( Truth_Table const& tt1, Truth_Table const& tt2 )
