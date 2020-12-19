@@ -32,3 +32,4 @@
 *.app
 src/my_tests.cpp
 .vscode
+report.tex

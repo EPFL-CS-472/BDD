@@ -223,7 +223,7 @@ public:
     const auto it = computed_table_XOR.find(key);
     if (it != computed_table_XOR.end()) {
       /* we found a node in the cache */
-      return it->second;
+      return resurrect(it->second);
     }
 
     /* we did not found an answer in the cache */
@@ -308,14 +308,7 @@ public:
     const auto it = computed_table_AND.find(key);
     if (it != computed_table_AND.end()) {
       /* we found a node in the cache */
-      return it->second;
-    }
-    /* we also check that the answer is not in the OR cache since
-       f & g == (~f) | (~g) */
-    const auto it_or = computed_table_OR.find({ NOT(f), NOT(g) });
-    if (it != computed_table_OR.end()) {
-      /* we found a node in the cache */
-      return it->second;
+      return resurrect(it->second);
     }
 
     /* we did not found an answer in the cache */
@@ -404,14 +397,7 @@ public:
     const auto it = computed_table_OR.find(key);
     if (it != computed_table_OR.end()) {
       /* we found a node in the cache */
-      return it->second;
-    }
-    /* we also check that the answer is not in the AND cache since
-       f | g == (~f) & (~g) */
-    const auto it_and = computed_table_AND.find({ NOT(f), NOT(g) });
-    if (it != computed_table_AND.end()) {
-      /* we found a node in the cache */
-      return it->second;
+      return resurrect(it->second);
     }
 
     /* we did not found an answer in the cache */
@@ -497,7 +483,7 @@ public:
     const auto it = computed_table_ITE.find(key);
     if (it != computed_table_ITE.end()) {
       /* we found a node in the cache */
-      return it->second;
+      return resurrect(it->second);
     }
 
     /* we did not found an answer in the cache */
@@ -689,6 +675,19 @@ private:
       visited[get_index(F.E)] = true;
     }
     return n + 1u;
+  }
+
+  signal_t resurrect(const signal_t f) {
+    const index_t index_f = get_index(f);
+    assert(index_f < nodes.size() && "Make sure f exists.");
+    if (is_dead(index_f) && index_f != 0) {
+      Node const& F = get_node(f);
+      resurrect(F.T);
+      ref(F.T);
+      resurrect(F.E);
+      ref(F.E);
+    }
+    return f;
   }
 
 private:
