@@ -7,6 +7,7 @@
 
 using namespace std;
 
+
 bool check( Truth_Table const& tt, string const& ans )
 {
   cout << "  checking function correctness";
