@@ -157,6 +157,7 @@ public:
 
   void deref(signal_t f) {
     index_t index_f = get_index(f);
+    assert(refs[index_f] > 0 || index_f == 0);
     refs[index_f] -= 1;
     if (is_dead(index_f) && index_f != 0) {
       /* f is not a litteral and it is dead */
@@ -180,7 +181,7 @@ public:
   signal_t XOR(signal_t f, signal_t g) {
     ++num_invoke_xor;
 
-    /* we use the commutativity and the property f ^ g == (~f) ^ (~g) 
+    /* we use the commutativity and the property f ^ g == (~f) ^ (~g)
        to have a single key for multiple equivalent computation in the
        cache :
         - the index of f should be small than the index of g
@@ -260,7 +261,7 @@ public:
       g1 = G.T;
       /* by the transformation from the begining of the function
          we know that f is not complemented */
-      /* If the inputs of g are complemented then we want to complement the output before the recursive call */
+         /* If the inputs of g are complemented then we want to complement the output before the recursive call */
       if (is_complemented(g)) {
         g0 = NOT(g0);
         g1 = NOT(g1);
@@ -280,7 +281,7 @@ public:
   signal_t AND(signal_t f, signal_t g) {
     ++num_invoke_and;
 
-    /* for simplicity in the cache we want the index of f to be 
+    /* for simplicity in the cache we want the index of f to be
        smaller that the index of g */
     if (get_index(f) >= get_index(g)) {
       const signal_t temp = f;
@@ -295,7 +296,7 @@ public:
       /* we found a node in the cache */
       return it->second;
     }
-    /* we also check that the answer is not in the OR cache since 
+    /* we also check that the answer is not in the OR cache since
        f & g == (~f) | (~g) */
     const auto it_or = computed_table_OR.find({ NOT(f), NOT(g) });
     if (it != computed_table_OR.end()) {
@@ -376,7 +377,7 @@ public:
   signal_t OR(signal_t f, signal_t g) {
     ++num_invoke_or;
 
-    /* for simplicity in the cache we want the index of f to be 
+    /* for simplicity in the cache we want the index of f to be
        smaller that the index of g */
     if (get_index(f) >= get_index(g)) {
       const signal_t temp = f;
@@ -391,7 +392,7 @@ public:
       /* we found a node in the cache */
       return it->second;
     }
-    /* we also check that the answer is not in the AND cache since 
+    /* we also check that the answer is not in the AND cache since
        f | g == (~f) & (~g) */
     const auto it_and = computed_table_AND.find({ NOT(f), NOT(g) });
     if (it != computed_table_AND.end()) {
